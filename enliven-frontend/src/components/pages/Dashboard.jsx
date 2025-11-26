@@ -42,7 +42,7 @@ const progressData = [
   { week: 'Week 4', progress: 68 }
 ];
 
-export function Dashboard({ onNavigate }) {
+export default function Dashboard({ onNavigate }) {
   const continueLearning = [
     {
       id: 1,

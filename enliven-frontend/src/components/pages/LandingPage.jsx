@@ -5,10 +5,9 @@ import {
   Zap, 
   Users, 
   TrendingUp, 
-  CheckCircle,
-  ArrowRight,
+  ArrowRight
 } from 'lucide-react';
-import { Button } from '../ui/button';
+import { useNavigate } from "react-router-dom";
 
 // Image fallback
 const ERROR_IMG_SRC =
@@ -29,7 +28,11 @@ function ImageWithFallback({ src, alt, className, style, ...rest }) {
   );
 }
 
-export function LandingPage({ onGetStarted, onTryDemo }) {
+export default function LandingPage() {
+
+
+  const navigate = useNavigate();
+
   const features = [
     { icon: Target, title: 'Personalized Learning', description: 'AI-powered adaptive learning paths tailored to your pace.', color: 'from-blue-50 to-blue-100 text-primary' },
     { icon: Zap, title: 'Skip What You Know', description: 'Smart assessments highlight strengths and gaps.', color: 'from-purple-50 to-purple-100 text-[#582B5B]' },
@@ -59,7 +62,6 @@ export function LandingPage({ onGetStarted, onTryDemo }) {
       <section className="relative bg-gradient-to-br from-[#ECF2FF] via-[#F1EDFF] to-[#F8F5FF] py-20 overflow-hidden">
         <div className="w-full px-10 lg:px-20 grid md:grid-cols-2 gap-14 items-center">
 
-
           {/* LEFT */}
           <div className="space-y-6">
 
@@ -81,16 +83,17 @@ export function LandingPage({ onGetStarted, onTryDemo }) {
               Break free from traditional learning. Get a personalized education that adapts to your pace, skips what you know, and focuses on what matters most.
             </p>
 
+            {/* ⭐ UPDATED BUTTONS */}
             <div className="flex flex-wrap gap-4">
               <button
-                onClick={onGetStarted}
+                onClick={() => navigate("/signup")}
                 className="px-8 py-4 bg-enliven-primary text-white rounded-full font-semibold text-lg hover:bg-enliven-primary-dark transition"
               >
                 Get Started Free →
               </button>
 
               <button
-                onClick={onTryDemo}
+                onClick={() => navigate("/login")}
                 className="px-8 py-4 border-2 border-gray-300 text-gray-700 rounded-full font-semibold text-lg hover:bg-gray-100 transition"
               >
                 Try Demo
@@ -110,49 +113,41 @@ export function LandingPage({ onGetStarted, onTryDemo }) {
       </section>
 
       {/* PROBLEM SECTION */}
-<section className="py-20 bg-background">
-  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="py-20 bg-background">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
-    {/* Heading */}
-    <div className="text-center mb-12">
-      <h2 className="text-4xl font-bold mb-4">Traditional Learning is Broken</h2>
-      <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-        Students face frustrations that hold them back from reaching their potential
-      </p>
-    </div>
-
-    {/* SAME grid size & spacing */}
-    <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-      {problems.map((problem, index) => (
-        <div
-          key={index}
-          className="flex items-start space-x-4 bg-white p-6 rounded-xl border border-red-200"
-        >
-          {/* Updated icon style only */}
-          <div className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center">
-            <span className="text-red-400 text-sm">✕</span>
+          <div className="text-center mb-12">
+            <h2 className="text-4xl font-bold mb-4">Traditional Learning is Broken</h2>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              Students face frustrations that hold them back from reaching their potential
+            </p>
           </div>
 
-          {/* Text stays same size */}
-          <p className="text-gray-700">{problem}</p>
+          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+            {problems.map((problem, index) => (
+              <div
+                key={index}
+                className="flex items-start space-x-4 bg-white p-6 rounded-xl border border-red-200"
+              >
+                <div className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center">
+                  <span className="text-red-400 text-sm">✕</span>
+                </div>
+                <p className="text-gray-700">{problem}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="text-center mt-12">
+            <div className="inline-flex items-center space-x-2 bg-blue-50 border border-blue-200 rounded-full px-6 py-3">
+              <Sparkles className="w-5 h-5 text-blue-600" />
+              <span className="font-medium text-blue-600">
+                Enliven solves all of this
+              </span>
+            </div>
+          </div>
+
         </div>
-      ))}
-    </div>
-
-    {/* Updated but same size CTA */}
-    <div className="text-center mt-12">
-      <div className="inline-flex items-center space-x-2 bg-blue-50 border border-blue-200 rounded-full px-6 py-3">
-        <Sparkles className="w-5 h-5 text-blue-600" />
-        <span className="font-medium text-blue-600">
-          Enliven solves all of this
-        </span>
-      </div>
-    </div>
-
-  </div>
-</section>
-
-
+      </section>
 
       {/* HOW IT WORKS */}
       <section id="how-it-works" className="py-20 bg-gradient-to-br from-blue-50 to-purple-50">
@@ -210,40 +205,35 @@ export function LandingPage({ onGetStarted, onTryDemo }) {
         </div>
       </section>
 
-      
-
       {/* FOOTER */}
       <footer id="about" className="bg-[#190019] text-white py-12">
-  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
-    <div className="text-center space-y-4">
+          <div className="text-center space-y-4">
 
-      <div className="flex justify-center items-center space-x-2">
-        <Sparkles className="w-6 h-6" />
-        <span className="text-xl font-semibold">Enliven</span>
-      </div>
+            <div className="flex justify-center items-center space-x-2">
+              <Sparkles className="w-6 h-6" />
+              <span className="text-xl font-semibold">Enliven</span>
+            </div>
 
-      <p className="text-white/70 max-w-lg mx-auto">
-        A personalized learning concept prototype built for innovation and problem-solving.
-      </p>
+            <p className="text-white/70 max-w-lg mx-auto">
+              A personalized learning concept prototype built for innovation and problem-solving.
+            </p>
 
-      <div className="flex flex-wrap justify-center gap-6 text-white/70 text-sm pt-4">
-        <a href="#" className="hover:text-white transition">About the Project</a>
-        <a href="#" className="hover:text-white transition">GitHub Repo</a>
-        <a href="#" className="hover:text-white transition">Pitch Deck</a>
-        
-      </div>
+            <div className="flex flex-wrap justify-center gap-6 text-white/70 text-sm pt-4">
+              <a href="#" className="hover:text-white transition">About the Project</a>
+              <a href="#" className="hover:text-white transition">GitHub Repo</a>
+              <a href="#" className="hover:text-white transition">Pitch Deck</a>
+            </div>
 
-      
-    </div>
+          </div>
 
-    <div className="border-t border-white/20 mt-10 pt-6 text-center text-white/60 text-sm">
-      © 2025 Enliven Prototype. Built with ❤️ by Team Enliven.
-    </div>
+          <div className="border-t border-white/20 mt-10 pt-6 text-center text-white/60 text-sm">
+            © 2025 Enliven Prototype. Built with ❤️ by Team Enliven.
+          </div>
 
-  </div>
-</footer>
-
+        </div>
+      </footer>
 
     </div>
   );

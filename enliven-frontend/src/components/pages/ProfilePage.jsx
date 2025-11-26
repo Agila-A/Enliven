@@ -28,7 +28,7 @@ import {
   Tooltip
 } from 'recharts';
 
-export function ProfilePage() {
+export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
 
   const profileData = {

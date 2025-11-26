@@ -24,10 +24,10 @@ const bottomItems = [
   { id: 'logout', label: 'Logout', icon: LogOut },
 ];
 
-export function Sidebar({ activePage, onNavigate }) {
+export default function Sidebar({ activePage, onNavigate }) {
   return (
     <aside className="w-64 bg-card border-r border-border h-screen sticky top-0 flex flex-col">
-      {/* Sidebar Header */}
+      
       <div className="p-6 border-b border-border">
         <div className="flex items-center space-x-2">
           <div className="w-8 h-8 bg-gradient-to-br from-primary to-[#582B5B] rounded-lg flex items-center justify-center">
@@ -37,7 +37,6 @@ export function Sidebar({ activePage, onNavigate }) {
         </div>
       </div>
 
-      {/* Main Menu */}
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
         {menuItems.map((item) => {
           const Icon = item.icon;
@@ -60,7 +59,6 @@ export function Sidebar({ activePage, onNavigate }) {
         })}
       </nav>
 
-      {/* Bottom Menu */}
       <div className="p-4 border-t border-border space-y-1">
         {bottomItems.map((item) => {
           const Icon = item.icon;

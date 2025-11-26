@@ -1,0 +1,106 @@
+# ---------------------------------------
+# NODE & REACT COMMON IGNORE
+# ---------------------------------------
+node_modules/
+dist/
+build/
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Local environment files
+*.local
+
+# Debugging
+*.pid
+*.seed
+*.pid.lock
+*.tgz
+
+# Mac + Windows files
+.DS_Store
+Thumbs.db
+
+# Editor folders
+.vscode/
+.idea/
+*.swp
+
+# TypeScript build files
+*.tsbuildinfo
+
+# Cache
+.cache/
+.temp/
+.tmp/
+*.cache
+
+# Vite, Next.js, Parcel, etc.
+.vite/
+.next/
+.svelte-kit/
+.nuxt/
+.cache/
+
+# Testing
+coverage/
+__tests__/
+jest.config.js
+*.snap
+
+# Misc binary outputs
+*.out
+*.bin
+
+# ---------------------------------------
+# BACKEND IGNORE
+# ---------------------------------------
+/uploads
+/database
+*.db
+*.sqlite
+
+# Compiled output
+dist/
+out/
+tmp/
+temp/
+
+# PM2 & other process managers
+.pids/
+*.pid
+
+# ---------------------------------------
+# FRONTEND IGNORE
+# ---------------------------------------
+# Static build
+/public/dist
+/public/build
+
+# React image artifacts
+*.orig
+
+# ---------------------------------------
+# MONOREPO SUPPORT (if root .gitignore)
+# ---------------------------------------
+enliven-backend/node_modules/
+enliven-frontend/node_modules/
+enliven-backend/.env
+enliven-frontend/.env
+
+# MongoDB files (local)
+*.bson
+*.json.tmp
+*.lock
+dump/
+data/

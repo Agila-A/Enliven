@@ -17,7 +17,7 @@ import { Button } from '../ui/button';
 import { ProgressBar } from '../ProgressBar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 
-export function CoursePage() {
+export default function CoursePage() {
   const [activeLesson, setActiveLesson] = useState('1-2');
   const [notes, setNotes] = useState('');
   const [sections, setSections] = useState([

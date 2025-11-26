@@ -2,7 +2,7 @@ import React from "react";
 import { Sparkles, Bell, User } from "lucide-react";
 import { Button } from "./ui/button";
 
-export function Navbar({ onGetStarted, isLanding = false }) {
+export default function Navbar({ onGetStarted, isLanding = false }) {
   return (
     <nav className="w-full fixed top-0 left-0 bg-white/80 backdrop-blur-lg border-b border-gray-200 z-50">
       {/* FULL WIDTH NAVBAR */}

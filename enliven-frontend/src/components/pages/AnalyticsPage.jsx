@@ -33,7 +33,7 @@ import {
   Cell
 } from 'recharts';
 
-export function AnalyticsPage() {
+export default function AnalyticsPage() {
   const weeklyProgress = [
     { week: 'Week 1', hours: 8, completed: 3 },
     { week: 'Week 2', hours: 12, completed: 5 },

@@ -12,7 +12,7 @@ import {
 import { Button } from '../ui/button';
 import { ProgressBar } from '../ProgressBar';
 
-export function AssessmentPage() {
+export default function AssessmentPage() {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState(Array(5).fill(null));
   const [assessmentState, setAssessmentState] = useState('taking');

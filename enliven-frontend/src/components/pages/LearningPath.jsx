@@ -13,7 +13,7 @@ import {
 import { Button } from '../ui/button';
 import { ProgressBar } from '../ProgressBar';
 
-export function LearningPath() {
+export default function LearningPath() {
   const [selectedModule, setSelectedModule] = useState(null);
 
   const modules = [
