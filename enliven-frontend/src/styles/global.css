@@ -1,0 +1,143 @@
+/* ✅ Tailwind 3 compatible global CSS */
+
+/* Import fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* ROOT THEME VARIABLES */
+:root {
+  --font-size: 16px;
+
+  /* Backgrounds & foregrounds */
+  --background: #f8fafc;
+  --foreground: #1e293b;
+
+  /* Enliven Color Palette */
+  --enliven-primary: #3b82f6;
+  --enliven-primary-light: #93c5fd;
+  --enliven-primary-dark: #2563eb;
+
+  --enliven-dark-purple: #190019;
+  --enliven-deep-purple: #2B124C;
+  --enliven-purple: #582B5B;
+  --enliven-mauve: #864F6C;
+  --enliven-pink: #DFB6B2;
+  --enliven-cream: #FBE4D8;
+
+  /* Semantic colors */
+  --card: #ffffff;
+  --card-foreground: #1e293b;
+  --popover: #ffffff;
+  --popover-foreground: #1e293b;
+  --primary: #3b82f6;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #1e293b;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+
+  --accent: #FBE4D8;
+  --accent-foreground: #2B124C;
+
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+
+  --success: #10b981;
+  --success-foreground: #ffffff;
+
+  --warning: #f59e0b;
+  --warning-foreground: #ffffff;
+
+  --border: rgba(0, 0, 0, 0.08);
+  --input: transparent;
+  --input-background: #ffffff;
+
+  --switch-background: #cbd5e1;
+  --ring: #3b82f6; 
+
+  /* Chart colors */
+  --chart-1: #3b82f6;
+  --chart-2: #582B5B;
+  --chart-3: #864F6C;
+  --chart-4: #DFB6B2;
+  --chart-5: #2B124C;
+
+  --radius: 0.75rem;
+}
+
+/* DARK MODE VARIABLES */
+.dark {
+  --background: #0f172a;
+  --foreground: #f8fafc;
+
+  --card: #1e293b;
+  --card-foreground: #f8fafc;
+
+  --popover: #1e293b;
+  --popover-foreground: #f8fafc;
+
+  --primary: #60a5fa;
+  --primary-foreground: #0f172a;
+
+  --secondary: #334155;
+  --secondary-foreground: #f8fafc;
+
+  --muted: #334155;
+  --muted-foreground: #94a3b8;
+
+  --accent: #2B124C;
+  --accent-foreground: #FBE4D8;
+
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.1);
+
+  --ring: #60a5fa;
+
+  --chart-1: #60a5fa;
+  --chart-2: #582B5B;
+  --chart-3: #864F6C;
+  --chart-4: #DFB6B2;
+  --chart-5: #2B124C;
+}
+
+/* APPLY THE THEME VALUES TO ELEMENTS */
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* UTILITY CLASSES TO USE VARIABLES IN TAILWIND */
+.bg-background { background-color: var(--background); }
+.bg-card { background-color: var(--card); }
+.bg-popover { background-color: var(--popover); }
+.bg-primary { background-color: var(--primary); }
+.bg-secondary { background-color: var(--secondary); }
+.bg-muted { background-color: var(--muted); }
+.bg-accent { background-color: var(--accent); }
+.bg-success { background-color: var(--success); }
+.bg-warning { background-color: var(--warning); }
+
+.text-foreground { color: var(--foreground); }
+.text-primary { color: var(--primary); }
+.text-muted-foreground { color: var(--muted-foreground); }
+.text-accent { color: var(--accent-foreground); }
+.text-success { color: var(--success); }
+.text-warning { color: var(--warning); }
+
+.border-border { border-color: var(--border); }
+/* Fix for gradients being purged */
+.from-\[\#ECF2FF\] { --tw-gradient-from: #ECF2FF; }
+.via-\[\#F1EDFF\] { --tw-gradient-via: #F1EDFF; }
+.to-\[\#F8F5FF\] { --tw-gradient-to: #F8F5FF; }
+
+.from-\[\#582B5B\] { --tw-gradient-from: #582B5B; }
+.to-\[\#582B5B\] { --tw-gradient-to: #582B5B; }
+
+.from-enliven-primary {
+  --tw-gradient-from: var(--enliven-primary);
+}
+
+.to-enliven-purple {
+  --tw-gradient-to: var(--enliven-purple);
+}
+
