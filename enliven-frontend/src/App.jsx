@@ -43,7 +43,9 @@ export default function App() {
       <Navbar isLanding={false} />
       <div className="flex">
         <Sidebar activePage={currentPage} onNavigate={handleNavigate} />
-        <main className="flex-1 min-h-[calc(100vh-64px)]">
+        <main className="flex-1 overflow-y-auto px-6 pt-24">
+
+
           {currentPage === 'dashboard' && <Dashboard onNavigate={handleNavigate} />}
           {currentPage === 'learning-path' && <LearningPath />}
           {currentPage === 'courses' && <CoursePage />}
