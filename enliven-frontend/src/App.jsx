@@ -16,6 +16,8 @@ import AppLayout from "./components/layout/AppLayout";
 
 import DomainSelect from "./components/pages/DomainSelect";
 import InitialAssessment from "./components/pages/InitialAssessment";
+import RoadmapPage from "./components/pages/Roadmap";
+
 
 // Auth Check
 const isLogged = () => localStorage.getItem("loggedIn") === "true";
@@ -57,6 +59,19 @@ export default function App() {
             )
           }
         />
+        <Route
+  path="/roadmap"
+  element={
+    isLogged() ? (
+      <AppLayout>
+        <RoadmapPage />
+      </AppLayout>
+    ) : (
+      <Navigate to="/login" />
+    )
+  }
+/>
+
 
         {/* Protected Pages */}
         <Route
