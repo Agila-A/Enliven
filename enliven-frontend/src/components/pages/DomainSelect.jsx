@@ -54,8 +54,9 @@ export default function DomainSelect() {
 
       setMsg({ type: "success", text: `Saved: ${data.domain}` });
 
+      localStorage.setItem("domain", data.domain);
 
-      // ⏳ small delay then navigate
+     // ⏳ small delay then navigate
       setTimeout(() => {
         navigate("/initial-assessment");
       }, 800);
