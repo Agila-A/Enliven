@@ -6,6 +6,9 @@ const createToken = (userId) => {
   return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: "7d" });
 };
 
+// =======================
+// REGISTER
+// =======================
 export const register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
@@ -22,24 +25,34 @@ export const register = async (req, res) => {
     const user = await User.create({ name, email, password: hashed });
     const token = createToken(user._id);
 
+    // send cookie (optional) + send token in JSON (required for frontend)
     res
       .cookie("token", token, {
         httpOnly: true,
         sameSite: "lax",
         secure: false,
-        path: "/", // FIXED COOKIE
+        path: "/",
       })
       .status(201)
       .json({
         message: "User registered successfully",
-        user: { id: user._id, name: user.name, email: user.email },
+        token,     // ⭐ IMPORTANT
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+        },
       });
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 };
 
+// =======================
+// LOGIN
+// =======================
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -59,26 +72,37 @@ export const login = async (req, res) => {
         httpOnly: true,
         sameSite: "lax",
         secure: false,
-        path: "/", // THIS WAS MISSING → NOW FIXED
+        path: "/",
       })
       .json({
         message: "Logged in successfully",
-        user: { id: user._id, name: user.name, email: user.email },
+        token,     // ⭐ IMPORTANT
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          domain: user.domain || null,
+        },
       });
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 };
 
+// =======================
+// LOGOUT
+// =======================
 export const logout = (req, res) => {
   res
-    .clearCookie("token", {
-      path: "/", // Make sure the cookie is fully cleared
-    })
+    .clearCookie("token", { path: "/" })
     .json({ message: "Logged out successfully" });
 };
 
+// =======================
+// GET CURRENT USER
+// =======================
 export const me = async (req, res) => {
   try {
     const user = await User.findById(req.userId).select("-password");

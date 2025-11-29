@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useState } from "react";
 
 import LandingPage from "./components/pages/LandingPage";
 import Signup from "./components/pages/Signup";
@@ -13,26 +14,55 @@ import ProfilePage from "./components/pages/ProfilePage";
 
 import AppLayout from "./components/layout/AppLayout";
 
-// FIXED AUTH CHECK
-const isLoggedIn = () => {
-  return localStorage.getItem("loggedIn") === "true";
-};
+import DomainSelect from "./components/pages/DomainSelect";
+import InitialAssessment from "./components/pages/InitialAssessment";
+
+// Auth Check
+const isLogged = () => localStorage.getItem("loggedIn") === "true";
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-
-        {/* Public pages */}
+        
+        {/* Public Pages */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/login" element={<Login />} />
 
-        {/* Protected pages */}
+        {/* Domain Selection */}
+        <Route
+          path="/select-domain"
+          element={
+            isLogged() ? (
+              <AppLayout>
+                <DomainSelect />
+              </AppLayout>
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
+        />
+
+        {/* Initial Assessment */}
+        <Route
+          path="/initial-assessment"
+          element={
+            isLogged() ? (
+              <AppLayout>
+                <InitialAssessment />
+              </AppLayout>
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
+        />
+
+        {/* Protected Pages */}
         <Route
           path="/dashboard"
           element={
-            isLoggedIn() ? (
+            isLogged() ? (
               <AppLayout>
                 <Dashboard />
               </AppLayout>
@@ -45,7 +75,7 @@ export default function App() {
         <Route
           path="/learning-path"
           element={
-            isLoggedIn() ? (
+            isLogged() ? (
               <AppLayout>
                 <LearningPath />
               </AppLayout>
@@ -58,7 +88,7 @@ export default function App() {
         <Route
           path="/courses"
           element={
-            isLoggedIn() ? (
+            isLogged() ? (
               <AppLayout>
                 <CoursePage />
               </AppLayout>
@@ -71,7 +101,7 @@ export default function App() {
         <Route
           path="/assessment"
           element={
-            isLoggedIn() ? (
+            isLogged() ? (
               <AppLayout>
                 <AssessmentPage />
               </AppLayout>
@@ -84,7 +114,7 @@ export default function App() {
         <Route
           path="/analytics"
           element={
-            isLoggedIn() ? (
+            isLogged() ? (
               <AppLayout>
                 <AnalyticsPage />
               </AppLayout>
@@ -97,7 +127,7 @@ export default function App() {
         <Route
           path="/profile"
           element={
-            isLoggedIn() ? (
+            isLogged() ? (
               <AppLayout>
                 <ProfilePage />
               </AppLayout>

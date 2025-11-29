@@ -27,8 +27,12 @@ export default function Signup() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
 
-      alert("Signup successful! Please log in.");
-      navigate("/login");
+      // ⭐ AUTO‑LOGIN RIGHT AFTER REGISTRATION
+      localStorage.setItem("loggedIn", "true");
+      localStorage.setItem("token", data.token);
+
+      alert("Account created! Let's get started.");
+      navigate("/select-domain"); // ⭐ redirect to domain selection
     } catch (err) {
       setError(err.message);
     } finally {
