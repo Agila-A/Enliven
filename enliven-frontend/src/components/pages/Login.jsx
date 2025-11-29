@@ -20,19 +20,26 @@ export default function Login() {
       const res = await fetch("http://localhost:5000/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include", // cookie
+        credentials: "include",
         body: JSON.stringify(form),
       });
 
       const data = await res.json();
-
       if (!res.ok) throw new Error(data.message);
 
-      // ⭐ THIS MAKES ROUTES UNLOCK
+      // ⭐ Store token + login state
       localStorage.setItem("loggedIn", "true");
+      localStorage.setItem("token", data.token);
 
       alert("Logged in successfully!");
-      navigate("/dashboard");
+
+      // ⭐ OPTIONAL IMPROVEMENT:
+      // If user has no domain, force them to domain selection
+      if (!data.domain) {
+        navigate("/select-domain");
+      } else {
+        navigate("/dashboard");
+      }
     } catch (err) {
       setError(err.message);
     } finally {

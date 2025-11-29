@@ -103,4 +103,4 @@ enliven-frontend/.env
 *.json.tmp
 *.lock
 dump/
-data/
+

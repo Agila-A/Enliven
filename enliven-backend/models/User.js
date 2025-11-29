@@ -23,6 +23,15 @@ const userSchema = new mongoose.Schema(
       enum: ["student", "mentor", "admin"],
       default: "student",
     },
+    domain: { 
+      type: String,
+      default: null
+    },
+    skillLevel: { 
+      type: String, 
+      default: null 
+    },
+
   },
   { timestamps: true }
 );
