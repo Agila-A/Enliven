@@ -162,11 +162,16 @@ export default function InitialAssessment() {
             {/* Start Learning Button */}
             <div className="text-center mt-10">
               <button
-                onClick={() => navigate("/courses")}
-                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md transition"
-              >
-                🚀 Start Learning
-              </button>
+onClick={() => navigate(
+  `/courses/${roadmap.domain}/${roadmap.skillLevel}`
+)}
+
+
+  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md transition"
+>
+  🚀 Start Learning
+</button>
+
             </div>
           </>
         )}

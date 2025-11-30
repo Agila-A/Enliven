@@ -1,14 +1,24 @@
 import Roadmap from "../models/Roadmap.js";
 import { getGroqClient } from "../ai/groqClient.js";
 
+// Convert to slug: "Web Development" -> "web-development"
+const toSlug = (s) => s.toLowerCase().replace(/\s+/g, "-");
+
+// Convert level consistently to lowercase
+const toLevel = (s) => s.toLowerCase();
+
 export const generateRoadmap = async (req, res) => {
   try {
     const userId = req.userId;
-    const { domain, skillLevel } = req.body;
+    let { domain, skillLevel } = req.body;
 
     if (!domain || !skillLevel) {
       return res.status(400).json({ message: "Domain & skillLevel required" });
     }
+
+    // Normalize before storing in DB
+    const domainSlug = toSlug(domain);      // web-development
+    const levelLower = toLevel(skillLevel); // beginner / intermediate
 
     const groq = getGroqClient();
 
@@ -42,10 +52,11 @@ Rules:
     const jsonText = response.choices[0].message.content.trim();
     const topics = JSON.parse(jsonText);
 
+    // Save normalized fields
     const roadmap = await Roadmap.create({
       userId,
-      domain,
-      skillLevel,
+      domain: domainSlug,
+      skillLevel: levelLower,
       topics,
     });
 
@@ -56,7 +67,6 @@ Rules:
     return res.status(500).json({ message: "Error generating roadmap" });
   }
 };
-
 
 export const getUserRoadmap = async (req, res) => {
   try {

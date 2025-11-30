@@ -1,0 +1,37 @@
+{
+  "steps": [
+    { "step": 1, "title": "Learn HTML Basics", "links": [
+         "https://youtu.be/qz0aGYrrlhU?si=QqcNZTBb3PwK-RrI",
+        "https://youtu.be/BzYMFd-lQL4?si=IrsCX6gyJ07MtK2F"
+    
+    ], "resources": [] },
+    { "step": 2, "title": "Understand CSS Fundamentals", "links": [
+        "https://youtu.be/wRNinF7YQqQ?si=VZAgpegi9ytfQMBN",
+        "https://youtu.be/JnTPd9G6hoY?si=CQsPruALcKXwKLfh"
+    ], "resources": [] },
+    { "step": 3, "title": "Get Familiar with JavaScript", "links": [
+        "https://youtu.be/W6NZfCO5SIk?si=vovnAxT9i7g12gKS",
+        "https://youtu.be/PkZNo7MFNFg?si=ny7jdJKMop17k6Oj"
+    ], "resources": [] },
+    { "step": 4, "title": "Choose a Code Editor", "links": [
+        "https://youtu.be/C5gPterGnu8?si=apxRPfKSOjL_Yx2f",
+        "https://youtu.be/WPqXP_kLzpo?si=H2XGG-IolsXW00Kv"
+    ], "resources": [] },
+    { "step": 5, "title": "Build a Simple Website", "links": [
+        "https://youtu.be/PlxWf493en4?si=sFJqR-wXXHSFUk10",
+        "https://youtu.be/FazgJVnrVuI?si=Hvb_g716T8Cp7z2F",
+        "https://youtu.be/krfUjg0S2uI?si=7uLoyiHfqL48HyZo"
+    ], "resources": [] },
+    { "step": 6, "title": "Learn about Front‑End Frameworks", "links": [
+        "https://youtu.be/SqcY0GlETPk?si=976sqpuP_0ODZar9",
+        "https://youtu.be/RVFAyFWO4go?si=ES1qRlIY3FuErDkK"
+    ], "resources": [] },
+    { "step": 7, "title": "Practice and Build Projects", "links": [
+        "https://youtu.be/5ZdHfJVAY-s?si=T7ZmXZ0ZnuX41LTe"
+    ], "resources": [] },
+    { "step": 8, "title": "Join Online Communities", "links": [], "resources": [
+        "https://stackoverflow.com/questions",
+        "https://hackclub.com/"
+    ] }
+  ]
+}
