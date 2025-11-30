@@ -1,0 +1,27 @@
+{
+  "steps": [
+    { "step": 1, "title": "Learn Advanced CSS", "links": [
+        "https://youtu.be/TzuWIHGFKCQ?si=p7l7aYYlpJ5SgT2h",
+        "https://youtu.be/6biMWgD6_JY?si=NWpReyzPBLOOsSpJ"
+    ], "resources": [] },
+    { "step": 2, "title": "Understand JavaScript Fundamentals", "links": [
+         "https://youtu.be/W6NZfCO5SIk?si=vovnAxT9i7g12gKS",
+        "https://youtu.be/PkZNo7MFNFg?si=ny7jdJKMop17k6Oj"
+    ], "resources": [] },
+    { "step": 3, "title": "Work with Front‑End Frameworks", "links": [
+        "https://youtu.be/SqcY0GlETPk?si=976sqpuP_0ODZar9",
+        "https://youtu.be/RVFAyFWO4go?si=ES1qRlIY3FuErDkK"
+    ], "resources": [] },
+    { "step": 4, "title": "Implement Responsive Web Design", "links": [
+        "https://youtu.be/srvUrASNj0s?si=wZq7YiKfJ0NXfpka"
+    ], "resources": [] },
+    { "step": 5, "title": "Master State Management and APIs", "links": [
+        "https://youtu.be/fZPgBnL2x-Q?si=EdzTsZqc1Oggxqdh",
+        "https://youtu.be/-bEzt5ISACA?si=ApazOX3M7m_elU1o"
+    ], "resources": [] },
+    { "step": 6, "title": "Improve Web Security & Performance", "links": [
+        "https://youtu.be/kCRYqHPZVzQ?si=4W0cO0J0w0Fqv_QP",
+        "https://youtu.be/80VviDER96I?si=YJysIFr6d5FbRBPa"
+    ], "resources": [] }
+  ]
+}

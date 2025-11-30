@@ -101,17 +101,18 @@ export default function App() {
         />
 
         <Route
-          path="/courses"
-          element={
-            isLogged() ? (
-              <AppLayout>
-                <CoursePage />
-              </AppLayout>
-            ) : (
-              <Navigate to="/login" />
-            )
-          }
-        />
+  path="/courses/:domain/:level"
+  element={
+    isLogged() ? (
+      <AppLayout>
+        <CoursePage />
+      </AppLayout>
+    ) : (
+      <Navigate to="/login" />
+    )
+  }
+/>
+
 
         <Route
           path="/assessment"
