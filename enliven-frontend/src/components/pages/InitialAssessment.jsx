@@ -1,18 +1,20 @@
 import { useEffect, useState } from "react";
-
+import { useNavigate } from "react-router-dom";
 
 export default function InitialAssessment() {
   const [questions, setQuestions] = useState([]);
-  const [current, setCurrent] = useState(0);
+  const [index, setIndex] = useState(0);
   const [answers, setAnswers] = useState([]);
-  const [selected, setSelected] = useState(null);
-  const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [result, setResult] = useState(null);
+  const [roadmap, setRoadmap] = useState(null);
 
-
+  const navigate = useNavigate();
   const token = localStorage.getItem("token");
 
-
+  // ----------------------------------------
+  // LOAD QUESTIONS
+  // ----------------------------------------
   useEffect(() => {
     const loadQuestions = async () => {
       try {
@@ -24,48 +26,39 @@ export default function InitialAssessment() {
             },
           }
         );
-
-
         const data = await res.json();
-        if (data.success) {
-          setQuestions(data.questions);
-        }
+        setQuestions(data.questions);
       } catch (err) {
-        console.error("Error loading questions", err);
+        console.error(err);
       } finally {
         setLoading(false);
       }
     };
-
-
     loadQuestions();
   }, []);
 
+  // ----------------------------------------
+  // HANDLE ANSWER
+  // ----------------------------------------
+  const handleAnswer = (optionIndex) => {
+    const grade = ["A", "B", "C", "D"][optionIndex];
+    const updated = [...answers, grade];
 
-  const handleNext = () => {
-    if (selected === null) return;
+    setAnswers(updated);
 
-
-    const newAns = [...answers, selected];
-    setAnswers(newAns);
-    setSelected(null);
-
-
-    if (current === questions.length - 1) {
-      submitAssessment(newAns);
+    if (index < questions.length - 1) {
+      setIndex(index + 1);
     } else {
-      setCurrent(current + 1);
+      submitAssessment(updated);
     }
   };
 
-
+  // ----------------------------------------
+  // SUBMIT ASSESSMENT + GENERATE ROADMAP
+  // ----------------------------------------
   const submitAssessment = async (finalAnswers) => {
     try {
-      const formatted = finalAnswers.map((idx) =>
-        ["A", "B", "C", "D"][idx]
-      );
-
-
+      // STEP 1 — send answers
       const res = await fetch(
         `${import.meta.env.VITE_API_URL}/api/user/initial-assessment`,
         {
@@ -74,81 +67,142 @@ export default function InitialAssessment() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ answers: formatted }),
+          body: JSON.stringify({ answers: finalAnswers }),
         }
       );
 
-
       const data = await res.json();
-      if (data.success) {
-        setResult(data.skillLevel);
-      }
+      setResult(data.skillLevel);
+
+      // STEP 2 — generate roadmap
+      const roadmapRes = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/roadmap/generate`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            domain: localStorage.getItem("domain"),
+            skillLevel: data.skillLevel,
+          }),
+        }
+      );
+
+      const roadmapData = await roadmapRes.json();
+      setRoadmap(roadmapData.roadmap);
+
+      // Store in localStorage for dashboard
+      localStorage.setItem("roadmap", JSON.stringify(roadmapData.roadmap));
     } catch (err) {
-      console.error("Submit error", err);
+      console.error(err);
     }
   };
 
-
-  if (loading) return <p className="p-6">Loading questions…</p>;
-
-
+  // ----------------------------------------
+  // RESULT + ROADMAP TIMELINE UI
+  // ----------------------------------------
   if (result) {
     return (
-      <div className="max-w-xl mx-auto p-6">
+      <div className="max-w-4xl mx-auto p-6">
+
+        {/* Skill Level */}
         <h1 className="text-3xl font-bold text-emerald-700 mb-4">
-          Your Skill Level:
+          🎉 Your Skill Level:
         </h1>
-        <p className="text-xl bg-emerald-100 border border-emerald-300 p-4 rounded-lg">
-          🎉 You are <b>{result}</b> in this domain!
+
+        <p className="text-xl bg-emerald-100 border border-emerald-300 p-4 rounded-lg mb-8">
+          You are <b>{result}</b> in this domain!
         </p>
+
+        {/* Roadmap Title */}
+        <h2 className="text-2xl font-bold text-blue-700 mb-6">
+          ⭐ Here is the perfect roadmap for you:
+        </h2>
+
+        {/* Loading */}
+        {!roadmap ? (
+          <p className="text-gray-600">Generating roadmap…</p>
+        ) : (
+          <>
+            {/* Horizontal Timeline */}
+            <div className="w-full overflow-x-auto py-6">
+              <div className="flex items-center space-x-12 px-4">
+
+                {roadmap.topics.map((step, index) => (
+                  <div
+                    key={index}
+                    className="flex flex-col items-center min-w-[200px]"
+                  >
+                    {/* Icon */}
+                    <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center border border-blue-300 mb-3">
+                      <span className="text-blue-600 text-xl">📘</span>
+                    </div>
+
+                    {/* Step Number Box */}
+                    <div className="bg-white shadow-md border rounded-xl px-6 py-3 text-center">
+                      <h3 className="font-bold text-lg text-gray-900">
+                        Step {step.sequenceNumber}
+                      </h3>
+                    </div>
+
+                    {/* Line */}
+                    <div className="h-8 w-1 bg-blue-300 my-2 rounded-full"></div>
+
+                    {/* Title */}
+                    <p className="text-gray-700 text-center max-w-[180px] text-sm">
+                      {step.title}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Start Learning Button */}
+            <div className="text-center mt-10">
+              <button
+                onClick={() => navigate("/courses")}
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md transition"
+              >
+                🚀 Start Learning
+              </button>
+            </div>
+          </>
+        )}
       </div>
     );
   }
 
+  // ----------------------------------------
+  // LOADING QUESTIONS
+  // ----------------------------------------
+  if (loading) return <p className="text-center mt-20">Loading questions…</p>;
 
+  const q = questions[index];
+
+  // ----------------------------------------
+  // QUESTION SCREEN
+  // ----------------------------------------
   return (
     <div className="max-w-xl mx-auto p-6">
-      {current === 0 && (
-        <p className="mb-6 text-lg bg-blue-50 p-4 rounded-lg border border-blue-200">
-          ⭐ <b>Alright!</b> Now answer these questions to determine your skill
-          level and get a tailor‑made learning roadmap for you.
-        </p>
-      )}
+      <h1 className="text-2xl font-bold mb-4 text-gray-800">
+        Let's analyze your skill level
+      </h1>
 
-
-      <h2 className="text-xl font-semibold mb-4">
-        Question {current + 1} of {questions.length}
-      </h2>
-
-
-      <p className="text-lg font-medium mb-4">
-        {questions[current].question}
-      </p>
-
+      <p className="text-lg mb-4 font-medium">{q.question}</p>
 
       <div className="space-y-3">
-        {questions[current].options.map((opt, index) => (
+        {q.options.map((opt, i) => (
           <button
-            key={index}
-            onClick={() => setSelected(index)}
-            className={`w-full text-left p-3 rounded-lg border transition ${
-              selected === index
-                ? "bg-indigo-600 text-white border-indigo-700"
-                : "bg-white hover:bg-indigo-50 border-gray-300"
-            }`}
+            key={i}
+            className="w-full text-left p-3 rounded-lg border hover:bg-blue-50 transition"
+            onClick={() => handleAnswer(i)}
           >
             {opt}
           </button>
         ))}
       </div>
-
-
-      <button
-        onClick={handleNext}
-        className="mt-6 px-4 py-2 rounded-lg bg-indigo-700 text-white font-semibold hover:bg-indigo-800 transition"
-      >
-        {current === questions.length - 1 ? "Submit" : "Next"}
-      </button>
     </div>
   );
 }
