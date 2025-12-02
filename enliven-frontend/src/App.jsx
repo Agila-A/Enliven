@@ -1,5 +1,4 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { useState } from "react";
 
 import LandingPage from "./components/pages/LandingPage";
 import Signup from "./components/pages/Signup";
@@ -18,62 +17,43 @@ import DomainSelect from "./components/pages/DomainSelect";
 import InitialAssessment from "./components/pages/InitialAssessment";
 import RoadmapPage from "./components/pages/Roadmap";
 
-
-// Auth Check
 const isLogged = () => localStorage.getItem("loggedIn") === "true";
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        
+
         {/* Public Pages */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/login" element={<Login />} />
 
-        {/* Domain Selection */}
+        {/* ❌ NO LAYOUT HERE */}
         <Route
           path="/select-domain"
           element={
-            isLogged() ? (
-              <AppLayout>
-                <DomainSelect />
-              </AppLayout>
-            ) : (
-              <Navigate to="/login" />
-            )
+            isLogged() ? <DomainSelect /> : <Navigate to="/login" />
           }
         />
 
-        {/* Initial Assessment */}
+        {/* ❌ NO LAYOUT HERE */}
         <Route
           path="/initial-assessment"
           element={
-            isLogged() ? (
-              <AppLayout>
-                <InitialAssessment />
-              </AppLayout>
-            ) : (
-              <Navigate to="/login" />
-            )
+            isLogged() ? <InitialAssessment /> : <Navigate to="/login" />
           }
         />
+
+        {/* ❌ NO LAYOUT HERE */}
         <Route
-  path="/roadmap"
-  element={
-    isLogged() ? (
-      <AppLayout>
-        <RoadmapPage />
-      </AppLayout>
-    ) : (
-      <Navigate to="/login" />
-    )
-  }
-/>
+          path="/roadmap"
+          element={
+            isLogged() ? <RoadmapPage /> : <Navigate to="/login" />
+          }
+        />
 
-
-        {/* Protected Pages */}
+        {/* Pages WITH sidebar + topbar */}
         <Route
           path="/dashboard"
           element={
@@ -101,18 +81,17 @@ export default function App() {
         />
 
         <Route
-  path="/courses/:domain/:level"
-  element={
-    isLogged() ? (
-      <AppLayout>
-        <CoursePage />
-      </AppLayout>
-    ) : (
-      <Navigate to="/login" />
-    )
-  }
-/>
-
+          path="/courses/:domain/:level"
+          element={
+            isLogged() ? (
+              <AppLayout>
+                <CoursePage />
+              </AppLayout>
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
+        />
 
         <Route
           path="/assessment"
