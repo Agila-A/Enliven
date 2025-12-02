@@ -1,33 +1,50 @@
-import React from 'react';
-import { 
-  LayoutDashboard, 
-  Route, 
-  BookOpen, 
-  ClipboardCheck, 
-  BarChart3,
-  User,
-  Settings,
-  LogOut
-} from 'lucide-react';
+import React from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import {
+  LayoutDashboard, Route as RouteIcon, BookOpen, ClipboardCheck,
+  BarChart3, User, Settings, LogOut
+} from "lucide-react";
 
 const menuItems = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'learning-path', label: 'Learning Path', icon: Route },
-  { id: 'courses', label: 'Courses', icon: BookOpen },
-  { id: 'assessment', label: 'Assessment', icon: ClipboardCheck },
-  { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-  { id: 'profile', label: 'Profile', icon: User },
+  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { id: "learning-path", label: "Learning Path", icon: RouteIcon },
+  { id: "courses", label: "Courses", icon: BookOpen },
+  { id: "assessment", label: "Assessment", icon: ClipboardCheck },
+  { id: "analytics", label: "Analytics", icon: BarChart3 },
+  { id: "profile", label: "Profile", icon: User },
 ];
 
 const bottomItems = [
-  { id: 'settings', label: 'Settings', icon: Settings },
-  { id: 'logout', label: 'Logout', icon: LogOut },
+  { id: "settings", label: "Settings", icon: Settings },
+  { id: "logout", label: "Logout", icon: LogOut },
 ];
 
-export default function Sidebar({ activePage, onNavigate }) {
+export default function Sidebar() {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+
+  const go = (id) => {
+    if (id === "courses") {
+      const roadmap = JSON.parse(localStorage.getItem("roadmap"));
+      if (roadmap) {
+        const domain = roadmap.domain.toLowerCase().replace(/\s+/g, "-");
+        const level = roadmap.skillLevel.toLowerCase();
+        navigate(`/courses/${domain}/${level}`);
+      } else {
+        navigate("/assessment");
+      }
+      return;
+    }
+    navigate(`/${id}`);
+  };
+
+  const isActive = (id) => {
+    if (id === "courses") return pathname.startsWith("/courses");
+    return pathname === `/${id}`;
+  };
+
   return (
     <aside className="w-64 bg-card border-r border-border h-screen sticky top-0 flex flex-col">
-      
       <div className="p-6 border-b border-border">
         <div className="flex items-center space-x-2">
           <div className="w-8 h-8 bg-gradient-to-br from-primary to-[#582B5B] rounded-lg flex items-center justify-center">
@@ -38,42 +55,31 @@ export default function Sidebar({ activePage, onNavigate }) {
       </div>
 
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {menuItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activePage === item.id;
-          
-          return (
-            <button
-              key={item.id}
-              onClick={() => onNavigate(item.id)}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all ${
-                isActive
-                  ? 'bg-primary text-white shadow-md'
-                  : 'text-foreground hover:bg-secondary'
-              }`}
-            >
-              <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-muted-foreground'}`} />
-              <span className="font-medium">{item.label}</span>
-            </button>
-          );
-        })}
+        {menuItems.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => go(id)}
+            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all ${
+              isActive(id) ? "bg-primary text-white shadow-md" : "text-foreground hover:bg-secondary"
+            }`}
+          >
+            <Icon className={`w-5 h-5 ${isActive(id) ? "text-white" : "text-muted-foreground"}`} />
+            <span className="font-medium">{label}</span>
+          </button>
+        ))}
       </nav>
 
       <div className="p-4 border-t border-border space-y-1">
-        {bottomItems.map((item) => {
-          const Icon = item.icon;
-          
-          return (
-            <button
-              key={item.id}
-              onClick={() => onNavigate(item.id)}
-              className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-foreground hover:bg-secondary transition-colors"
-            >
-              <Icon className="w-5 h-5 text-muted-foreground" />
-              <span>{item.label}</span>
-            </button>
-          );
-        })}
+        {bottomItems.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => go(id)}
+            className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-foreground hover:bg-secondary transition-colors"
+          >
+            <Icon className="w-5 h-5 text-muted-foreground" />
+            <span>{label}</span>
+          </button>
+        ))}
       </div>
     </aside>
   );

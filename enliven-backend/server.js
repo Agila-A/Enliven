@@ -10,6 +10,9 @@ import userRoutes from "./routes/userRoutes.js";
 import roadmapRoutes from "./routes/roadmapRoutes.js";
 import courseRoutes from "./routes/courseRoutes.js";
 import notesRoutes from "./routes/notesRoutes.js";
+import profileRoutes from "./routes/profileRoutes.js";
+import dashboardRoutes from "./routes/dashboardRoutes.js";
+import progressRoutes from "./routes/progressRoutes.js";
 
 
 const app = express();
@@ -29,6 +32,9 @@ app.use("/api/user", userRoutes);
 app.use("/api/roadmap", roadmapRoutes);
 app.use("/api/courses", courseRoutes);
 app.use("/api/notes", notesRoutes);
+app.use("/api/profile", profileRoutes);
+app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/progress", progressRoutes);
 
 mongoose
   .connect(process.env.MONGO_URI)
