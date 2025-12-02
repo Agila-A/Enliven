@@ -1,7 +1,6 @@
 // controllers/dashboardController.js
 import User from "../models/User.js";
 import Roadmap from "../models/Roadmap.js";
-import Progress from "../models/Progress.js";
 
 export const getDashboardData = async (req, res) => {
   try {
@@ -21,28 +20,8 @@ export const getDashboardData = async (req, res) => {
       skillLevel: level,
     });
 
-    const courseId = `${domain}-${level}`;
-    const progressDoc = await Progress.findOne({ userId, courseId });
-
     // -------------------------
-    // CALCULATE COURSE PROGRESS
-    // -------------------------
-    let completedVideos = 0;
-    let totalVideos = 0;
-
-    if (progressDoc?.progress?.length) {
-      progressDoc.progress.forEach(t => {
-        const videoStates = Object.values(t.videoProgress || {});
-        totalVideos += videoStates.length;
-        completedVideos += videoStates.filter(Boolean).length;
-      });
-    }
-
-    const courseProgress =
-      totalVideos > 0 ? Math.round((completedVideos / totalVideos) * 100) : 0;
-
-    // -------------------------
-    // RESPONSE
+    // RESPONSE without progress
     // -------------------------
     return res.json({
       success: true,
@@ -50,8 +29,7 @@ export const getDashboardData = async (req, res) => {
         user,
         continueLearning: [
           {
-            title: user.domain, // FIXED
-            progress: courseProgress,
+            title: user.domain || "Your Course",
             description: "Keep learning and finish your course!",
           },
         ],

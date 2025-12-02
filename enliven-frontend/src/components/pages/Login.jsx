@@ -12,40 +12,35 @@ export default function Login() {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
+  e.preventDefault();
+  setLoading(true);
+  setError("");
 
-    try {
-      const res = await fetch("http://localhost:5000/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(form),
-      });
+  try {
+    const res = await fetch("http://localhost:5000/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(form),
+    });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message);
 
-      // ⭐ Store token + login state
-      localStorage.setItem("loggedIn", "true");
-      localStorage.setItem("token", data.token);
+    // Store login info
+    localStorage.setItem("loggedIn", "true");
+    localStorage.setItem("token", data.token);
 
-      alert("Logged in successfully!");
+    // ⭐ ALWAYS go to dashboard
+    navigate("/dashboard");
 
-      // ⭐ OPTIONAL IMPROVEMENT:
-      // If user has no domain, force them to domain selection
-      if (!data.domain) {
-        navigate("/select-domain");
-      } else {
-        navigate("/dashboard");
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  } catch (err) {
+    setError(err.message);
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   return (
     <div className="min-h-screen flex justify-center items-center bg-gradient-to-br from-emerald-100 to-sky-100 p-4">
