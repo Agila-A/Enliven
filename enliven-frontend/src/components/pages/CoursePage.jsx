@@ -1,17 +1,24 @@
+/*  
+  COURSEPAGE.JSX — MODULE LOCKING + MODULE TESTS + FINAL TEST
+  -----------------------------------------------------------
+  - Shows "Take Test" after all videos in a module are done
+  - Blocks entering the next module until that test is completed
+  - Reads test status from localStorage: test-${domain}-${level}-${moduleId}
+*/
+
 import React, { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import {
   Play, CheckCircle, Lock, ChevronDown, ChevronRight, FileText, Download, LoaderCircle
 } from "lucide-react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "../ui/button";
 import { ProgressBar } from "../ProgressBar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../ui/tabs";
 
 /* ------------ helpers ------------ */
 const toTitleCase = (s = "") =>
-  s
-    .replace(/-/g, " ")
+  s.replace(/-/g, " ")
     .split(" ")
     .filter(Boolean)
     .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
@@ -32,16 +39,14 @@ const convertToEmbed = (url = "") => {
   }
 };
 
-// Build a stable courseId and topicId we’ll use in progress API
-const buildCourseId = (domain, level) => `${domain}-${level}`; // e.g., web-development-beginner
-const buildTopicId = (sequenceNumber) => String(sequenceNumber); // e.g., "1", "2", ...
+const buildCourseId = (domain, level) => `${domain}-${level}`;
+const buildTopicId = (sequenceNumber) => String(sequenceNumber);
 
 /** Convert backend progress array -> Map(topicId => { videoProgress: Map, currentIndex: number }) */
 function normalizeProgress(progressArray = []) {
   const map = new Map();
   for (const p of progressArray) {
     const vp = new Map();
-    // p.videoProgress is { "0": true, "1": false, ... }
     if (p.videoProgress && typeof p.videoProgress === "object") {
       for (const [k, v] of Object.entries(p.videoProgress)) vp.set(Number(k), !!v);
     }
@@ -62,16 +67,20 @@ const mapToObj = (m) => {
 
 export default function CoursePage() {
   const { domain, level } = useParams();
+  const navigate = useNavigate();
   const courseId = useMemo(() => buildCourseId(domain, level), [domain, level]);
 
-  const [sections, setSections] = useState([]); // [{ id, title, expanded, lessons: [{ id, title, url|resource, type, status, topicId, videoIndex }] }]
+  const [sections, setSections] = useState([]); // [{ id, title, expanded, lessons: [...] }]
   const [activeLesson, setActiveLesson] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notesLoading, setNotesLoading] = useState(false);
   const [autoNotes, setAutoNotes] = useState("");
   const [error, setError] = useState("");
 
-  // Load course (merged) + progress
+  // 🔐 module test completion status { [sectionId]: true/false }
+  const [moduleTestsCompleted, setModuleTestsCompleted] = useState({});
+
+  // Load course (merged) + progress + module test status
   useEffect(() => {
     let mounted = true;
 
@@ -81,7 +90,7 @@ export default function CoursePage() {
       try {
         const token = localStorage.getItem("token");
 
-        // 1) load merged content (now uses videos[] from backend)
+        // 1) load merged content (uses videos/resources from backend)
         const res = await fetch(
           `${import.meta.env.VITE_API_URL}/api/courses/${domain}/${level}/merged`,
           { headers: { Authorization: `Bearer ${token}` } }
@@ -99,16 +108,14 @@ export default function CoursePage() {
         const pres = await fetch(`${import.meta.env.VITE_API_URL}/api/progress/${courseId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        // If no progress yet, still ok
         const pjson = pres.ok ? await pres.json() : { success: true, progress: [] };
         const progressMap = normalizeProgress(pjson.progress || []);
 
-        // 3) Build UI sections/lessons using videos + resources, then apply progress
+        // 3) Build UI sections/lessons using videos + resources
         const builtSections = items.map((step) => {
           const topicId = buildTopicId(step.sequenceNumber);
           const lessons = [];
 
-          // videos array -> lessons
           (step.videos || []).forEach((video, vidx) => {
             lessons.push({
               id: `${step.sequenceNumber}-V${vidx + 1}`,
@@ -121,7 +128,6 @@ export default function CoursePage() {
             });
           });
 
-          // optional resources -> lessons
           (step.resources || []).forEach((file, ridx) => {
             lessons.push({
               id: `${step.sequenceNumber}-R${ridx + 1}`,
@@ -146,10 +152,10 @@ export default function CoursePage() {
         let initialActive = null;
 
         for (const sec of builtSections) {
-          const p = progressMap.get(sec.id); // topicId == sequenceNumber
+          const p = progressMap.get(sec.id);
           if (!p) continue;
 
-          // unlock based on completed flags
+          // mark completed videos
           for (const lesson of sec.lessons) {
             if (lesson.type === "video" && lesson.videoIndex != null) {
               const isDone = p.videoProgress.get(lesson.videoIndex) === true;
@@ -157,31 +163,23 @@ export default function CoursePage() {
             }
           }
 
-          // set current pointer
+          // set current pointer within the SAME section
           const currentIdx = Number.isFinite(p.currentIndex) ? p.currentIndex : 0;
           const currentVideoLesson = sec.lessons.find(
             l => l.type === "video" && l.videoIndex === currentIdx
           );
 
           if (currentVideoLesson) {
-            // mark current as current
-            currentVideoLesson.status = currentVideoLesson.status === "completed" ? "completed" : "current";
-            // expand section and set initial active if we don’t have one yet
+            currentVideoLesson.status =
+              currentVideoLesson.status === "completed" ? "completed" : "current";
             if (!initialActive) {
               initialActive = currentVideoLesson;
-              sec.expanded = true;
-            }
-          } else if (sec.lessons.length) {
-            // fallback if no matching video found
-            sec.lessons[0].status = sec.lessons[0].status === "completed" ? "completed" : "current";
-            if (!initialActive) {
-              initialActive = sec.lessons[0];
               sec.expanded = true;
             }
           }
         }
 
-        // 5) If STILL nothing selected, unlock first lesson of first section
+        // 5) Fallback if nothing selected
         if (!initialActive && builtSections[0]?.lessons[0]) {
           builtSections[0].expanded = true;
           builtSections[0].lessons[0].status =
@@ -189,9 +187,17 @@ export default function CoursePage() {
           initialActive = builtSections[0].lessons[0];
         }
 
+        // 6) Load module test completion flags from localStorage
+        const tests = {};
+        builtSections.forEach((sec) => {
+          const key = `test-${domain}-${level}-${sec.id}`;
+          tests[sec.id] = localStorage.getItem(key) === "done";
+        });
+
         if (mounted) {
           setSections(builtSections);
           setActiveLesson(initialActive || null);
+          setModuleTestsCompleted(tests);
         }
       } catch (e) {
         console.error(e);
@@ -207,62 +213,54 @@ export default function CoursePage() {
     };
   }, [domain, level, courseId]);
 
-  // flatten all lessons to compute next
+  // helpers
   const flatLessons = () => sections.flatMap(s => s.lessons);
-
-  // Compute overall progress % (counts videos + readings)
   const totalLessons = flatLessons().length || 1;
   const completed = flatLessons().filter(l => l.status === "completed").length;
   const progress = Math.round((completed / totalLessons) * 100);
 
-  // icons
   const iconFor = (lesson) => {
     if (lesson.status === "completed") return <CheckCircle className="w-5 h-5 text-green-500" />;
     if (lesson.status === "current") return <Play className="w-5 h-5 text-blue-500" />;
     return <Lock className="w-5 h-5 text-gray-400" />;
   };
 
+  const isSectionCompleted = (section) => {
+    const videos = section.lessons.filter(l => l.type === "video");
+    if (videos.length === 0) return false;
+    return videos.every(l => l.status === "completed");
+  };
+
+  const allModulesCompleted = sections.length > 0 && sections.every(isSectionCompleted);
+
   // Save progress (per-topic) to backend
   const saveProgress = async ({ topicId, videoProgressMap, currentIndex }) => {
     try {
       const token = localStorage.getItem("token");
-      const body = {
-        courseId,
-        topicId,
-        videoProgress: mapToObj(videoProgressMap), // { "0": true, ... }
-        currentIndex,
-      };
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/progress/save`, {
+      await fetch(`${import.meta.env.VITE_API_URL}/api/progress/save`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          courseId,
+          topicId,
+          videoProgress: mapToObj(videoProgressMap),
+          currentIndex,
+        }),
       });
-      if (!res.ok) {
-  const text = await res.text();
-  console.error("Progress save failed:", text);
-} else {
-  const json = await res.json();
-
-  // 🎉 XP Notification (Console for now)
-  if (json.awardedXP > 0) {
-    console.log(`+${json.awardedXP} XP awarded!`);
-  }
-}
-
     } catch (e) {
       console.error("Progress save error:", e);
     }
   };
 
   // When user marks current lesson as completed
-  const completeCurrentLesson = async () => {
+  const completeCurrentLesson = () => {
     if (!activeLesson) return;
 
     setSections(prev => {
-      // clone
+      // 1) Mark current as completed
       const updated = prev.map(sec => ({
         ...sec,
         lessons: sec.lessons.map(les =>
@@ -270,67 +268,90 @@ export default function CoursePage() {
         ),
       }));
 
-      // find all lessons in flat order
+      // 2) Find the next lesson in flat sequence
       const all = updated.flatMap(s => s.lessons);
       const idx = all.findIndex(l => l.id === activeLesson.id);
       const next = all[idx + 1];
 
-      // set next lesson to current (if exists & locked)
-      if (next && next.status === "locked") {
-        updated.forEach(sec => {
-          sec.lessons = sec.lessons.map(l =>
-            l.id === next.id ? { ...l, status: "current" } : l
-          );
-        });
-        // expand the section containing next
-        updated.forEach(sec => {
-          if (sec.lessons.some(l => l.id === next.id)) sec.expanded = true;
-        });
+      // 3) Persist progress for the current topic (section)
+      const currentTopicId = activeLesson.topicId;
+      const currentSection = updated.find(s => s.id === currentTopicId);
+      if (currentSection) {
+        const videoProgressMap = new Map();
+        for (const les of currentSection.lessons) {
+          if (les.type === "video" && les.videoIndex != null) {
+            videoProgressMap.set(les.videoIndex, les.status === "completed");
+          }
+        }
+        let currentIndex = 0;
+        const firstPending = currentSection.lessons.find(
+          l => l.type === "video" && l.videoIndex != null && l.status !== "completed"
+        );
+        if (firstPending && typeof firstPending.videoIndex === "number") {
+          currentIndex = firstPending.videoIndex;
+        } else {
+          const keys = [...videoProgressMap.keys()];
+          currentIndex = keys.length ? Math.max(...keys) : 0;
+        }
+        // fire & forget
+        saveProgress({ topicId: currentTopicId, videoProgressMap, currentIndex });
       }
 
-      // Update activeLesson reference in state after DOM/state update
-      setTimeout(() => {
-        setActiveLesson(next || activeLesson);
-      }, 0);
+      // 4) Unlock logic:
+      //    - If next lesson is IN THE SAME MODULE -> allow setting it to current
+      //    - If next lesson is in the NEXT MODULE:
+      //        * If test for current module is NOT done -> DO NOT unlock next module (show test button in sidebar), keep user on current module
+      //        * If test is done -> allow unlocking first lesson of next module
+      if (next && next.status === "locked") {
+        const nextModuleId = next.topicId;
+        const currentModuleId = currentTopicId;
 
-      // ---- persist per-topic video progress ----
-      // We only persist for topics with videos (type = "video")
-      // Build progress map for the affected topic only
-      const affectedTopicId = activeLesson.topicId;
-      if (affectedTopicId) {
-        const topicSection = updated.find(s => s.id === affectedTopicId);
-        if (topicSection) {
-          const videoProgressMap = new Map();
-          for (const les of topicSection.lessons) {
-            if (les.type === "video" && les.videoIndex != null) {
-              videoProgressMap.set(les.videoIndex, les.status === "completed");
-            }
+        if (nextModuleId === currentModuleId) {
+          // same module → allow normal progression
+          for (const sec of updated) {
+            sec.lessons = sec.lessons.map(l =>
+              l.id === next.id ? { ...l, status: "current" } : l
+            );
           }
+          updated.forEach(sec => {
+            if (sec.lessons.some(l => l.id === next.id)) sec.expanded = true;
+          });
+          setTimeout(() => setActiveLesson(next), 0);
+        } else {
+          // crossing module boundary → require test
+          const testKey = `test-${domain}-${level}-${currentModuleId}`;
+          const testDone = localStorage.getItem(testKey) === "done";
 
-          // currentIndex = next video index to watch within this topic
-          let currentIndex = 0;
-          // choose first non-completed video, else last index
-          const firstPending = topicSection.lessons.find(
-            l => l.type === "video" && l.videoIndex != null && l.status !== "completed"
-          );
-          if (firstPending && typeof firstPending.videoIndex === "number") {
-            currentIndex = firstPending.videoIndex;
+          if (!testDone) {
+            // DO NOT unlock next module; user must click "Take Test" (now visible) in sidebar
+            alert("Please take the module test to unlock the next module.");
+            // keep active lesson as is (last completed of current module)
+            setTimeout(() => setActiveLesson(activeLesson), 0);
           } else {
-            // if all completed, keep last index (or 0)
-            const maxIdx = [...videoProgressMap.keys()].reduce((a, b) => Math.max(a, b), 0);
-            currentIndex = maxIdx;
+            // Test done → allow unlocking next module's first lesson
+            for (const sec of updated) {
+              sec.lessons = sec.lessons.map(l =>
+                l.id === next.id ? { ...l, status: "current" } : l
+              );
+            }
+            updated.forEach(sec => {
+              if (sec.lessons.some(l => l.id === next.id)) sec.expanded = true;
+            });
+            setTimeout(() => setActiveLesson(next), 0);
           }
-
-          // fire and forget (don’t block UI)
-          saveProgress({ topicId: affectedTopicId, videoProgressMap, currentIndex });
         }
+      } else {
+        // no next (maybe end of course)
+        setTimeout(() => setActiveLesson(activeLesson), 0);
       }
 
       return updated;
     });
   };
 
-  // generate notes for current video
+  // ---------------------------
+  // NOTES
+  // ---------------------------
   const generateNotes = async () => {
     if (!activeLesson?.title) return;
     setNotesLoading(true);
@@ -361,7 +382,6 @@ export default function CoursePage() {
     <div className="flex h-screen overflow-hidden">
       {/* MAIN */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* HEADER with proper casing */}
         <div className="bg-card p-6 border-b">
           <h1 className="text-2xl font-bold">
             {toTitleCase(domain)} ({cap1(level)})
@@ -466,10 +486,34 @@ export default function CoursePage() {
                     </div>
                   </button>
                 ))}
+
+                {/* -------------------------
+                      MODULE TEST BUTTON
+                    -------------------------- */}
+                {isSectionCompleted(section) && (
+                  <button
+                    onClick={() => navigate(`/assessment?module=${section.id}`)}
+                    className="w-full mt-3 mb-4 px-4 py-2 bg-blue-600 text-white rounded-lg"
+                  >
+                    Take Test
+                  </button>
+                )}
               </div>
             )}
           </div>
         ))}
+
+        {/* -------------------------
+              FINAL TEST BUTTON
+            -------------------------- */}
+        {allModulesCompleted && (
+          <button
+            onClick={() => navigate("/assessment?final=true")}
+            className="w-full mt-6 py-3 bg-purple-600 text-white rounded-xl"
+          >
+            Take Final Test
+          </button>
+        )}
       </div>
     </div>
   );
