@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { updateStudyBuddyContext } from "../../utils/studyBuddy.js";
 
 export default function InitialAssessment() {
   const [questions, setQuestions] = useState([]);
@@ -74,6 +75,13 @@ export default function InitialAssessment() {
       const data = await res.json();
       setResult(data.skillLevel);
 
+      updateStudyBuddyContext({
+  event: "initial_assessment_completed",
+  skillLevel: data.skillLevel,
+  domain: localStorage.getItem("domain"),
+});
+
+
       // STEP 2 — generate roadmap
       const roadmapRes = await fetch(
         `${import.meta.env.VITE_API_URL}/api/roadmap/generate`,
@@ -92,6 +100,12 @@ export default function InitialAssessment() {
 
       const roadmapData = await roadmapRes.json();
       setRoadmap(roadmapData.roadmap);
+
+      updateStudyBuddyContext({
+  event: "roadmap_generated",
+  roadmap: roadmapData.roadmap,
+});
+
 
       // Store in localStorage for dashboard
       localStorage.setItem("roadmap", JSON.stringify(roadmapData.roadmap));

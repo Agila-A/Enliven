@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-
+import { updateStudyBuddyContext } from "../../utils/studyBuddy.js"
 
 const DOMAINS = [
   "Web Development",
@@ -55,6 +55,12 @@ export default function DomainSelect() {
       setMsg({ type: "success", text: `Saved: ${data.domain}` });
 
       localStorage.setItem("domain", data.domain);
+
+       // 🔔 Update StudyBuddy memory (domain selected)
+      await updateStudyBuddyContext({
+        event: "domain_selected",
+        domain: data.domain,
+      });
 
      // ⏳ small delay then navigate
       setTimeout(() => {

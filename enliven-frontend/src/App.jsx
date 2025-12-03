@@ -16,6 +16,7 @@ import AppLayout from "./components/layout/AppLayout";
 import DomainSelect from "./components/pages/DomainSelect";
 import InitialAssessment from "./components/pages/InitialAssessment";
 import RoadmapPage from "./components/pages/Roadmap";
+import StudyBuddyChat from "./components/pages/StudyBuddyChat";
 
 const isLogged = () => localStorage.getItem("loggedIn") === "true";
 
@@ -131,6 +132,19 @@ export default function App() {
             )
           }
         />
+
+        <Route
+  path="/study-buddy"
+  element={
+    isLogged() ? (
+      <AppLayout>
+        <StudyBuddyChat />
+      </AppLayout>
+    ) : (
+      <Navigate to="/login" />
+    )
+  }
+/>
 
       </Routes>
     </BrowserRouter>
