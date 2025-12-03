@@ -13,7 +13,7 @@ import notesRoutes from "./routes/notesRoutes.js";
 import profileRoutes from "./routes/profileRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import progressRoutes from "./routes/progressRoutes.js";
-
+import chatbotRoutes from "./routes/chatbotRoutes.js";
 
 const app = express();
 
@@ -35,6 +35,7 @@ app.use("/api/notes", notesRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/progress", progressRoutes);
+app.use("/api/chatbot", chatbotRoutes);
 
 mongoose
   .connect(process.env.MONGO_URI)

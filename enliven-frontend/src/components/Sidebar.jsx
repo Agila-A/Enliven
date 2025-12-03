@@ -2,7 +2,7 @@ import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Route as RouteIcon, BookOpen, ClipboardCheck,
-  BarChart3, User, Settings, LogOut
+  BarChart3, User, Settings, LogOut, MessageCircle
 } from "lucide-react";
 
 const menuItems = [
@@ -11,8 +11,13 @@ const menuItems = [
   { id: "courses", label: "Courses", icon: BookOpen },
   { id: "assessment", label: "Assessment", icon: ClipboardCheck },
   { id: "analytics", label: "Analytics", icon: BarChart3 },
+
+  // ⭐ NEW — StudyBuddy
+  { id: "studybuddy", label: "StudyBuddy", icon: MessageCircle },
+
   { id: "profile", label: "Profile", icon: User },
 ];
+
 
 const bottomItems = [
   { id: "settings", label: "Settings", icon: Settings },
@@ -24,6 +29,11 @@ export default function Sidebar() {
   const { pathname } = useLocation();
 
   const go = (id) => {
+
+    if (id === "studybuddy") {
+    navigate("/study-buddy");
+    return;
+  }
     if (id === "courses") {
       const roadmap = JSON.parse(localStorage.getItem("roadmap"));
       if (roadmap) {

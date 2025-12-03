@@ -15,6 +15,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "../ui/button";
 import { ProgressBar } from "../ProgressBar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../ui/tabs";
+import { updateStudyBuddyContext } from "../../utils/studyBuddy.js";
 
 /* ------------ helpers ------------ */
 const toTitleCase = (s = "") =>
@@ -256,7 +257,7 @@ export default function CoursePage() {
   };
 
   // When user marks current lesson as completed
-  const completeCurrentLesson = () => {
+  const completeCurrentLesson = async() => {
     if (!activeLesson) return;
 
     setSections(prev => {
@@ -347,6 +348,14 @@ export default function CoursePage() {
 
       return updated;
     });
+
+    await updateStudyBuddyContext({
+  step: "lesson_completed",
+  lessonTitle: activeLesson.title,
+  module: activeLesson.topicId
+});
+
+     
   };
 
   // ---------------------------
