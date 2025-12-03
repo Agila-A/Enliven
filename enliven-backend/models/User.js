@@ -33,6 +33,16 @@ const userSchema = new mongoose.Schema(
         savedDate: String,
       },
     ],
+    badges: [
+  {
+    id: String,
+    name: String,
+    description: String,
+    icon: String,
+    awardedOn: Date
+  }
+],
+
 
     achievements: [
       {

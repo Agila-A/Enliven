@@ -172,31 +172,45 @@ export default function ProfilePage() {
 
           {/* Achievements */}
           <TabsContent value="achievements">
-            <div className="bg-white border rounded-xl p-6">
-              <h3 className="text-xl font-semibold mb-4">Achievements</h3>
+  <div className="bg-white border rounded-xl p-6">
+    <h3 className="text-xl font-semibold mb-6">Achievements</h3>
 
-              {(!profile.achievements || profile.achievements.length === 0) && (
-                <p className="text-gray-500">No achievements yet.</p>
-              )}
+    {/* No badges */}
+    {(!profile.badges || profile.badges.length === 0) && (
+      <p className="text-gray-500">No achievements yet. Complete modules to earn badges!</p>
+    )}
 
-              <div className="grid md:grid-cols-2 gap-4">
-                {profile.achievements?.map((a, index) => (
-                  <div key={index} className="p-4 border rounded-lg bg-primary/5">
-                    <div className="flex space-x-4">
-                      <div className="text-4xl">{a.icon}</div>
-                      <div>
-                        <h4 className="font-semibold">{a.title}</h4>
-                        <p className="text-sm text-gray-600">{a.description}</p>
-                        <p className="text-xs text-green-600 mt-1">
-                          Unlocked on {a.date}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </TabsContent>
+    {/* Badge Grid */}
+    <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6">
+      {profile.badges?.map((badge, index) => (
+        <div
+          key={index}
+          className="p-4 border rounded-xl shadow-sm hover:shadow-md transition bg-primary/5 flex flex-col items-center text-center"
+        >
+          {/* Badge Image */}
+          <img
+            src={badge.icon}
+            alt={badge.name}
+            className="w-24 h-24 object-contain mb-3 drop-shadow-md"
+          />
+
+          {/* Badge Title */}
+          <h4 className="font-semibold text-lg">{badge.name}</h4>
+
+          {/* Badge Description */}
+          <p className="text-sm text-gray-600 mt-1">{badge.description}</p>
+
+          {/* Awarded Date */}
+          <p className="text-xs text-green-600 mt-2">
+            Earned on {new Date(badge.awardedOn).toLocaleDateString()}
+          </p>
+        </div>
+      ))}
+    </div>
+
+  </div>
+</TabsContent>
+
 
           {/* Saved Resources */}
           <TabsContent value="resources">
