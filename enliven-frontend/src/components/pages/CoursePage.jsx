@@ -1,9 +1,5 @@
 /*  
   COURSEPAGE.JSX — MODULE LOCKING + MODULE TESTS + FINAL TEST
-  -----------------------------------------------------------
-  - Shows "Take Test" after all videos in a module are done
-  - Blocks entering the next module until that test is completed
-  - Reads test status from localStorage: test-${domain}-${level}-${moduleId}
 */
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -24,7 +20,6 @@ import { ProgressBar } from "../ProgressBar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../ui/tabs";
 import { updateStudyBuddyContext } from "../../utils/studyBuddy.js";
 
-/* ------------ helpers ------------ */
 const toTitleCase = (s = "") =>
   s
     .replace(/-/g, " ")
@@ -51,7 +46,6 @@ const convertToEmbed = (url = "") => {
 const buildCourseId = (domain, level) => `${domain}-${level}`;
 const buildTopicId = (sequenceNumber) => String(sequenceNumber);
 
-/** Convert backend progress -> Map(topicId => { videoProgress: Map, currentIndex }) */
 function normalizeProgress(progressArray = []) {
   const map = new Map();
   for (const p of progressArray) {
@@ -68,7 +62,6 @@ function normalizeProgress(progressArray = []) {
   return map;
 }
 
-/** Convert Map<number, boolean> -> plain object */
 const mapToObj = (m) => {
   const o = {};
   for (const [k, v] of m.entries()) o[String(k)] = !!v;
@@ -87,7 +80,6 @@ export default function CoursePage() {
   const [autoNotes, setAutoNotes] = useState("");
   const [error, setError] = useState("");
 
-  // Load course + progress + module test status
   useEffect(() => {
     let mounted = true;
 
@@ -98,7 +90,6 @@ export default function CoursePage() {
       try {
         const token = localStorage.getItem("token");
 
-        // 1) Load merged content
         const res = await fetch(
           `${import.meta.env.VITE_API_URL}/api/courses/${domain}/${level}/merged`,
           { headers: { Authorization: `Bearer ${token}` } }
@@ -114,7 +105,6 @@ export default function CoursePage() {
 
         const items = Array.isArray(data.items) ? data.items : [];
 
-        // 2) Load progress
         const pres = await fetch(
           `${import.meta.env.VITE_API_URL}/api/progress/${courseId}`,
           { headers: { Authorization: `Bearer ${token}` } }
@@ -123,7 +113,6 @@ export default function CoursePage() {
         const pjson = pres.ok ? await pres.json() : { success: true, progress: [] };
         const progressMap = normalizeProgress(pjson.progress || []);
 
-        // 3) Build sections
         const builtSections = items.map((step) => {
           const topicId = buildTopicId(step.sequenceNumber);
           const lessons = [];
@@ -160,7 +149,30 @@ export default function CoursePage() {
           };
         });
 
-        // 4) Apply progress
+        // UNLOCK NEXT MODULES (if previous module test is done)
+        for (let i = 0; i < builtSections.length; i++) {
+          const sec = builtSections[i];
+          const prevModuleId = builtSections[i - 1]?.id;
+
+          if (!prevModuleId) continue;
+
+          const testKey = `test-${domain}-${level}-${prevModuleId}`;
+          const testDone = localStorage.getItem(testKey) === "done";
+
+          if (testDone) {
+            sec.expanded = true;
+
+            let unlocked = false;
+            sec.lessons = sec.lessons.map((lesson) => {
+              if (!unlocked && lesson.type === "video") {
+                unlocked = true;
+                return { ...lesson, status: "current" };
+              }
+              return lesson;
+            });
+          }
+        }
+
         let initialActive = null;
 
         for (const sec of builtSections) {
@@ -216,7 +228,6 @@ export default function CoursePage() {
     };
   }, [domain, level, courseId]);
 
-  // helpers
   const flatLessons = () => sections.flatMap((s) => s.lessons);
   const totalLessons = flatLessons().length || 1;
   const completed = flatLessons().filter((l) => l.status === "completed").length;
@@ -239,7 +250,6 @@ export default function CoursePage() {
   const allModulesCompleted =
     sections.length > 0 && sections.every(isSectionCompleted);
 
-  // Save progress
   const saveProgress = async ({ topicId, videoProgressMap, currentIndex }) => {
     try {
       const token = localStorage.getItem("token");
@@ -261,7 +271,6 @@ export default function CoursePage() {
     }
   };
 
-  // handle completion
   const completeCurrentLesson = async () => {
     if (!activeLesson) return;
 
@@ -296,19 +305,21 @@ export default function CoursePage() {
             l.status !== "completed"
         );
 
-        if (
-          firstPending &&
-          typeof firstPending.videoIndex === "number"
-        ) {
+        if (firstPending && typeof firstPending.videoIndex === "number") {
           currentIndex = firstPending.videoIndex;
         } else {
           const keys = [...videoProgressMap.keys()];
           currentIndex = keys.length ? Math.max(...keys) : 0;
         }
 
-        saveProgress({ topicId: currentTopicId, videoProgressMap, currentIndex });
+        saveProgress({
+          topicId: currentTopicId,
+          videoProgressMap,
+          currentIndex
+        });
       }
 
+      // ====== FIXED MODULE UNLOCK BLOCK ======
       if (next && next.status === "locked") {
         const nextModuleId = next.topicId;
         const currentModuleId = currentTopicId;
@@ -328,25 +339,30 @@ export default function CoursePage() {
           setTimeout(() => setActiveLesson(next), 0);
         } else {
           const testKey = `test-${domain}-${level}-${currentModuleId}`;
-          const testDone = localStorage.getItem(testKey) === "done";
+          let testDone = localStorage.getItem(testKey) === "done";
+
+          if (!testDone) {
+            testDone = localStorage.getItem(testKey) === "done";
+          }
 
           if (!testDone) {
             alert("Please take the module test to unlock the next module.");
             setTimeout(() => setActiveLesson(activeLesson), 0);
-          } else {
-            updated.forEach((sec) => {
-              sec.lessons = sec.lessons.map((l) =>
-                l.id === next.id ? { ...l, status: "current" } : l
-              );
-            });
-
-            updated.forEach((sec) => {
-              if (sec.lessons.some((l) => l.id === next.id))
-                sec.expanded = true;
-            });
-
-            setTimeout(() => setActiveLesson(next), 0);
+            return updated;
           }
+
+          updated.forEach((sec) => {
+            sec.lessons = sec.lessons.map((l) =>
+              l.id === next.id ? { ...l, status: "current" } : l
+            );
+          });
+
+          updated.forEach((sec) => {
+            if (sec.lessons.some((l) => l.id === next.id))
+              sec.expanded = true;
+          });
+
+          setTimeout(() => setActiveLesson(next), 0);
         }
       } else {
         setTimeout(() => setActiveLesson(activeLesson), 0);
@@ -362,7 +378,6 @@ export default function CoursePage() {
     });
   };
 
-  // NOTES
   const generateNotes = async () => {
     if (!activeLesson?.title) return;
 
@@ -395,7 +410,6 @@ export default function CoursePage() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      {/* MAIN */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="bg-card p-6 border-b">
           <h1 className="text-2xl font-bold">
@@ -409,7 +423,6 @@ export default function CoursePage() {
           </div>
         </div>
 
-        {/* CONTENT */}
         <div className="flex-1 overflow-y-auto p-6">
           {activeLesson?.type === "video" ? (
             <div className="aspect-video rounded-xl overflow-hidden bg-black">
@@ -480,7 +493,6 @@ export default function CoursePage() {
         </div>
       </div>
 
-      {/* SIDEBAR */}
       <div className="w-96 bg-card border-l overflow-y-auto p-6">
         <h2 className="text-xl font-semibold mb-4">Course Content</h2>
 
@@ -526,38 +538,33 @@ export default function CoursePage() {
                   </button>
                 ))}
 
-{/* MODULE TEST BUTTON */}
-{isSectionCompleted(section) && (
-  <button
-    onClick={() =>
-      navigate(
-        `/assessment?module=${section.id}&domain=${domain}&level=${level}`
-      )
-    }
-    className="w-full mt-3 mb-4 px-4 py-2 bg-blue-600 text-white rounded-lg"
-  >
-    Take Test
-  </button>
-)}
-
+                {isSectionCompleted(section) && (
+                  <button
+                    onClick={() =>
+                      navigate(
+                        `/assessment?module=${section.id}&domain=${domain}&level=${level}`
+                      )
+                    }
+                    className="w-full mt-3 mb-4 px-4 py-2 bg-blue-600 text-white rounded-lg"
+                  >
+                    Take Test
+                  </button>
+                )}
               </div>
             )}
           </div>
         ))}
 
-{allModulesCompleted && (
-  <button
-    onClick={() =>
-      navigate(
-        `/assessment?final=true&domain=${domain}&level=${level}`
-      )
-    }
-    className="w-full mt-6 py-3 bg-purple-600 text-white rounded-xl"
-  >
-    Take Final Test
-  </button>
-)}
-
+        {allModulesCompleted && (
+          <button
+            onClick={() =>
+              navigate(`/assessment?final=true&domain=${domain}&level=${level}`)
+            }
+            className="w-full mt-6 py-3 bg-purple-600 text-white rounded-xl"
+          >
+            Take Final Test
+          </button>
+        )}
       </div>
     </div>
   );
