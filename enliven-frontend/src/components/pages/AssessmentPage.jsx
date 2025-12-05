@@ -35,8 +35,9 @@ export default function AssessmentPage() {
   const moduleId = params.get("module");
   const isFinal = params.get("final") === "true";
 
-  const domain = "react";
-  const level = "beginner";
+const domain = params.get("domain");
+const level = params.get("level");
+
 
   // =====================================
   // UNLOCK NEXT MODULE / FINAL
@@ -284,7 +285,8 @@ export default function AssessmentPage() {
               Retake Test
             </Button>
 
-            <Button onClick={() => navigate(-1)}>
+            <Button onClick={() => navigate(`/courses/${domain}/${level}`)
+}>
               Continue Learning
             </Button>
           </div>
