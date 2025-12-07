@@ -18,7 +18,7 @@ import proctorRoutes from "./routes/proctorRoutes.js"
 
 const app = express();
 
-app.use(express.json());
+app.use(express.json({ strict: false }));
 app.use(cookieParser());
 
 app.use(

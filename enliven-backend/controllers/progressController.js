@@ -2,7 +2,7 @@
 import Progress from "../models/Progress.js";
 
 // --------------------------------------------------
-// SAVE PROGRESS
+// SAVE VIDEO / TOPIC PROGRESS  (original)
 // --------------------------------------------------
 export const saveProgress = async (req, res) => {
   try {
@@ -13,10 +13,8 @@ export const saveProgress = async (req, res) => {
       return res.status(400).json({ success: false, message: "Missing courseId or topicId" });
     }
 
-    // 1️⃣ Find progress doc
     let progressDoc = await Progress.findOne({ userId, courseId });
 
-    // 2️⃣ If not exist, create new
     if (!progressDoc) {
       progressDoc = new Progress({
         userId,
@@ -25,15 +23,12 @@ export const saveProgress = async (req, res) => {
       });
     }
 
-    // 3️⃣ Check if topic exists
     let topic = progressDoc.progress.find(t => t.topicId === String(topicId));
 
     if (topic) {
-      // Update existing topic
       topic.videoProgress = videoProgress || {};
       topic.currentIndex = Number(currentIndex) || 0;
     } else {
-      // Add new topic entry
       progressDoc.progress.push({
         topicId: String(topicId),
         videoProgress: videoProgress || {},
@@ -51,9 +46,8 @@ export const saveProgress = async (req, res) => {
   }
 };
 
-
 // --------------------------------------------------
-// GET PROGRESS FOR COURSE
+// GET PROGRESS FOR A COURSE
 // --------------------------------------------------
 export const getProgressForCourse = async (req, res) => {
   try {
@@ -65,10 +59,50 @@ export const getProgressForCourse = async (req, res) => {
     res.json({
       success: true,
       progress: doc?.progress || [],
+      moduleStatus: doc?.moduleStatus || {},
+      finalCompleted: doc?.finalCompleted || false,
     });
 
   } catch (err) {
     console.error("Get Progress Error:", err);
     res.status(500).json({ success: false, message: "Failed to load progress" });
+  }
+};
+
+// --------------------------------------------------
+// ⭐ NEW — SAVE ASSESSMENT PROGRESS (module test or final exam)
+// --------------------------------------------------
+export const saveAssessmentProgress = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { courseId, moduleId, isFinal } = req.body;
+
+    if (!courseId) {
+      return res.status(400).json({ success: false, message: "Missing courseId" });
+    }
+
+    let progressDoc = await Progress.findOne({ userId, courseId });
+
+    if (!progressDoc) {
+      progressDoc = new Progress({
+        userId,
+        courseId,
+        progress: [],
+      });
+    }
+
+    if (isFinal) {
+      progressDoc.finalCompleted = true;
+    } else if (moduleId) {
+      progressDoc.moduleStatus.set(moduleId, "completed");
+    }
+
+    await progressDoc.save();
+
+    res.json({ success: true });
+
+  } catch (err) {
+    console.error("Assessment Progress Error:", err);
+    res.status(500).json({ success: false });
   }
 };

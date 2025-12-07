@@ -12,7 +12,11 @@ export const requireAuth = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // ⭐ FIX — attach user object like your controller expects
     req.userId = decoded.userId;
+
+
     next();
   } catch (err) {
     return res.status(401).json({ message: "Invalid token" });

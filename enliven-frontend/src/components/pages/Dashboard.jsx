@@ -106,38 +106,83 @@ export default function Dashboard() {
           />
           <StatsCard
             title="Achievements"
-            value={user.achievements?.length || 0}
+            value={user.badges?.length || 0}
             icon={BookOpen}
             color="success"
           />
         </div>
       </div>
 
-      {/* CONTINUE LEARNING SECTION (Simple Course Card) */}
-      <div>
-        <h2 className="text-2xl font-semibold mb-4">Continue Learning</h2>
+{/* CONTINUE LEARNING SECTION */}
+<div>
+  <h2 className="text-2xl font-semibold mb-4">Your Course</h2>
 
-        <div
-          className="bg-card rounded-xl border p-6 cursor-pointer hover:shadow-lg transition"
-          onClick={() => navigate(`/courses/${user.domain}/${user.skillLevel}`)}
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-primary font-semibold uppercase">
-                {user.domain}
-              </p>
-              <h3 className="text-xl font-bold mt-1">
-                {user.domain} — {user.skillLevel}
-              </h3>
-              <p className="text-muted-foreground text-sm mt-1">
-                Continue where you left off
-              </p>
-            </div>
+  {user.badges?.some(b => b.id === "course-completion") ? (
+    // 🎉 COURSE COMPLETED CARD
+    <div className="bg-green-50 border border-green-300 rounded-xl p-6 shadow-sm">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase text-green-700">
+            {user.domain}
+          </p>
 
-            <Play className="w-10 h-10 text-primary" />
-          </div>
+          <h3 className="text-2xl font-bold mt-1 text-green-900">
+            🎉 Course Completed!
+          </h3>
+
+          <p className="text-green-700 mt-1">
+            Congratulations! You have completed the entire course.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <Button
+            className="bg-green-600 hover:bg-green-700 text-white"
+            onClick={() => navigate("/profile")}
+          >
+            View Badge
+          </Button>
+
+          {/* ⭐ Still show Continue Learning (review course) */}
+          <Button
+            variant="outline"
+            onClick={() =>
+              navigate(`/courses/${user.domain}/${user.skillLevel}`)
+            }
+          >
+            Review Course
+          </Button>
         </div>
       </div>
+    </div>
+  ) : (
+    // ⭐ NORMAL CONTINUE LEARNING CARD
+    <div
+      className="bg-card rounded-xl border p-6 cursor-pointer hover:shadow-lg transition"
+      onClick={() => navigate(`/courses/${user.domain}/${user.skillLevel}`)}
+    >
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-primary font-semibold uppercase">
+            {user.domain}
+          </p>
+
+          <h3 className="text-xl font-bold mt-1">
+            {user.domain} — {user.skillLevel}
+          </h3>
+
+          <p className="text-muted-foreground text-sm mt-1">
+            Continue where you left off
+          </p>
+        </div>
+
+        <Play className="w-10 h-10 text-primary" />
+      </div>
+    </div>
+  )}
+</div>
+
+
 
     </div>
   );

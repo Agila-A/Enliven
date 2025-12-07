@@ -10,6 +10,8 @@ import {
 import { Button } from "../ui/button";
 import { ProgressBar } from "../ProgressBar";
 import { useLocation, useNavigate } from "react-router-dom";
+import BadgePopup from "../BadgePopup";
+
 
 export default function AssessmentPage() {
   const navigate = useNavigate();
@@ -35,9 +37,12 @@ export default function AssessmentPage() {
   const moduleId = params.get("module");
   const isFinal = params.get("final") === "true";
 
-const domain = params.get("domain");
-const level = params.get("level");
+  // Badge states
+  const [earnedBadge, setEarnedBadge] = useState(null);
+  const [showPopup, setShowPopup] = useState(false);
 
+  const domain = params.get("domain");
+  const level = params.get("level");
 
   // =====================================
   // UNLOCK NEXT MODULE / FINAL
@@ -65,22 +70,23 @@ const level = params.get("level");
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({
-            id: "course-completion",
-            name: "Course Completion",
-            description: "Awarded for completing the final assessment.",
-            icon: "/course-completed.png", // your badge path
-          }),
+          body: JSON.stringify({ id: "course-completion" })
         }
       );
 
       const data = await res.json();
-      if (!data.success) {
-        console.error("Badge save failed:", data);
+
+      if (data.success) {
+        setEarnedBadge(data.badge);    // from backend
+        setShowPopup(true);            // show popup
       }
+
     } catch (err) {
       console.error("Badge error:", err);
     }
+
+    console.log("🔥 Award badge triggered");
+
   }, []);
 
   // =====================================
@@ -250,14 +256,28 @@ const level = params.get("level");
     const results = calculateResults();
     const passed = results.percentage >= 60;
 
-    // Unlock next module
+    // Unlock course/module
     if (passed) markTestComplete();
 
-    // ⭐ ADDED: Award badge ONLY if final + passed
+    // Award badge (final only)
     if (isFinal && passed) awardCompletionBadge();
 
     return (
       <div className="p-8">
+
+        {/* ⭐ BADGE POPUP GOES HERE */}
+{showPopup && earnedBadge && (
+  <BadgePopup
+    badge={earnedBadge}
+    onClose={() => setShowPopup(false)}
+    onCollect={() => {
+      setShowPopup(false);
+      navigate("/profile");
+    }}
+  />
+)}
+
+
         <div className="max-w-4xl mx-auto text-center">
           <h1 className="text-3xl font-bold mb-4">Assessment Complete</h1>
 
@@ -270,9 +290,15 @@ const level = params.get("level");
           </div>
 
           {passed ? (
-            <div className="text-emerald-600 font-semibold text-xl mb-6">
-              ⭐ You Passed! Next module unlocked.
-            </div>
+            isFinal ? (
+              <div className="text-emerald-600 font-semibold text-xl mb-6">
+                🎉 Course Completed! You earned a badge!
+              </div>
+            ) : (
+              <div className="text-emerald-600 font-semibold text-xl mb-6">
+                ⭐ You Passed! Next module unlocked.
+              </div>
+            )
           ) : (
             <div className="text-red-600 font-semibold text-xl mb-6">
               ❌ You failed. Score at least 60% to continue.
@@ -285,10 +311,24 @@ const level = params.get("level");
               Retake Test
             </Button>
 
-            <Button onClick={() => navigate(`/courses/${domain}/${level}`)
-}>
-              Continue Learning
-            </Button>
+            {isFinal ? (
+              passed ? (
+<Button
+  onClick={() => {
+    if (earnedBadge) {
+      setShowPopup(true);  // reopen popup
+    }
+  }}
+>
+  🎖️ View Your Badge
+</Button>
+
+              ) : null
+            ) : (
+              <Button onClick={() => navigate(`/courses/${domain}/${level}`)}>
+                Continue Learning
+              </Button>
+            )}
           </div>
         </div>
       </div>
