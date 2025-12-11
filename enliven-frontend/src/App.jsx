@@ -18,7 +18,8 @@ import InitialAssessment from "./components/pages/InitialAssessment";
 import RoadmapPage from "./components/pages/Roadmap";
 import StudyBuddyChat from "./components/pages/StudyBuddyChat";
 
-const isLogged = () => localStorage.getItem("loggedIn") === "true";
+const isLogged = () => !!localStorage.getItem("token");
+
 
 export default function App() {
   return (
