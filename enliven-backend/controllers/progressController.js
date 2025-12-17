@@ -1,108 +1,97 @@
 // controllers/progressController.js
 import Progress from "../models/Progress.js";
 
-// --------------------------------------------------
-// SAVE VIDEO / TOPIC PROGRESS  (original)
-// --------------------------------------------------
+const ensureProgressDoc = async (userId, courseId) => {
+  let doc = await Progress.findOne({ userId, courseId });
+  if (!doc) doc = await Progress.create({ userId, courseId, progress: [] });
+  return doc;
+};
+
+const upsertTopic = (doc, topicId, patch) => {
+  const id = String(topicId);
+  const idx = doc.progress.findIndex(p => String(p.topicId) === id);
+  if (idx === -1) {
+    doc.progress.push({ topicId: id, videoProgress: {}, currentIndex: 0, ...patch });
+  } else {
+    // merge map-like object safely
+    if (patch.videoProgress) {
+      doc.progress[idx].videoProgress = {
+        ...(doc.progress[idx].videoProgress || {}),
+        ...patch.videoProgress,
+      };
+    }
+    if (typeof patch.currentIndex === "number") {
+      doc.progress[idx].currentIndex = patch.currentIndex;
+    }
+  }
+};
+
+// POST /api/progress/save
 export const saveProgress = async (req, res) => {
   try {
     const userId = req.userId;
-    const { courseId, topicId, videoProgress, currentIndex } = req.body;
+    const { courseId, topicId, videoProgress = {}, currentIndex = 0 } = req.body;
 
-    if (!courseId || !topicId) {
-      return res.status(400).json({ success: false, message: "Missing courseId or topicId" });
-    }
+    if (!courseId || !topicId)
+      return res.status(400).json({ success: false, message: "courseId and topicId required" });
 
-    let progressDoc = await Progress.findOne({ userId, courseId });
+    const doc = await ensureProgressDoc(userId, courseId);
+    upsertTopic(doc, topicId, { videoProgress, currentIndex });
+    await doc.save();
 
-    if (!progressDoc) {
-      progressDoc = new Progress({
-        userId,
-        courseId,
-        progress: [],
-      });
-    }
-
-    let topic = progressDoc.progress.find(t => t.topicId === String(topicId));
-
-    if (topic) {
-      topic.videoProgress = videoProgress || {};
-      topic.currentIndex = Number(currentIndex) || 0;
-    } else {
-      progressDoc.progress.push({
-        topicId: String(topicId),
-        videoProgress: videoProgress || {},
-        currentIndex: Number(currentIndex) || 0
-      });
-    }
-
-    await progressDoc.save();
-
-    res.json({ success: true, message: "Progress saved!" });
-
+    res.json({ success: true });
   } catch (err) {
-    console.error("Progress Save Error:", err);
+    console.error("saveProgress error:", err);
     res.status(500).json({ success: false, message: "Failed to save progress" });
   }
 };
 
-// --------------------------------------------------
-// GET PROGRESS FOR A COURSE
-// --------------------------------------------------
+// GET /api/progress/:courseId
 export const getProgressForCourse = async (req, res) => {
   try {
     const userId = req.userId;
     const { courseId } = req.params;
 
-    const doc = await Progress.findOne({ userId, courseId });
-
+    const doc = await Progress.findOne({ userId, courseId }).lean();
     res.json({
       success: true,
       progress: doc?.progress || [],
       moduleStatus: doc?.moduleStatus || {},
-      finalCompleted: doc?.finalCompleted || false,
+      finalCompleted: !!doc?.finalCompleted,
     });
-
   } catch (err) {
-    console.error("Get Progress Error:", err);
+    console.error("getProgressForCourse error:", err);
     res.status(500).json({ success: false, message: "Failed to load progress" });
   }
 };
 
-// --------------------------------------------------
-// ⭐ NEW — SAVE ASSESSMENT PROGRESS (module test or final exam)
-// --------------------------------------------------
+// POST /api/progress/assessment  (module tests + final)
 export const saveAssessmentProgress = async (req, res) => {
   try {
     const userId = req.userId;
-    const { courseId, moduleId, isFinal } = req.body;
+    const { courseId, type, moduleId } = req.body; // type: "module" | "final"
 
-    if (!courseId) {
-      return res.status(400).json({ success: false, message: "Missing courseId" });
+    if (!courseId || !type) {
+      return res.status(400).json({ success: false, message: "courseId and type required" });
     }
 
-    let progressDoc = await Progress.findOne({ userId, courseId });
+    const doc = await ensureProgressDoc(userId, courseId);
 
-    if (!progressDoc) {
-      progressDoc = new Progress({
-        userId,
-        courseId,
-        progress: [],
-      });
+    if (type === "module") {
+      if (!moduleId) return res.status(400).json({ success: false, message: "moduleId required" });
+      const map = doc.moduleStatus || new Map();
+      map.set ? map.set(String(moduleId), "completed") : (map[String(moduleId)] = "completed");
+      doc.moduleStatus = map;
+    } else if (type === "final") {
+      doc.finalCompleted = true;
+    } else {
+      return res.status(400).json({ success: false, message: "Invalid type" });
     }
 
-    if (isFinal) {
-      progressDoc.finalCompleted = true;
-    } else if (moduleId) {
-      progressDoc.moduleStatus.set(moduleId, "completed");
-    }
-
-    await progressDoc.save();
-
+    await doc.save();
     res.json({ success: true });
-
   } catch (err) {
-    console.error("Assessment Progress Error:", err);
-    res.status(500).json({ success: false });
+    console.error("saveAssessmentProgress error:", err);
+    res.status(500).json({ success: false, message: "Failed to save assessment status" });
   }
 };
