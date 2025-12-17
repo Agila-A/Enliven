@@ -15,7 +15,7 @@ import dashboardRoutes from "./routes/dashboardRoutes.js";
 import progressRoutes from "./routes/progressRoutes.js";
 import chatbotRoutes from "./routes/chatbotRoutes.js";
 import proctorRoutes from "./routes/proctorRoutes.js"
-
+import learningPathRoutes from "./routes/learningPathRoutes.js";
 const app = express();
 
 app.use(express.json({ strict: false }));
@@ -38,6 +38,7 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/progress", progressRoutes);
 app.use("/api/chatbot", chatbotRoutes);
 app.use("/api/proctor", proctorRoutes);
+app.use("/api/learning-path", learningPathRoutes);
 
 mongoose
   .connect(process.env.MONGO_URI)
