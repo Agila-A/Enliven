@@ -6,7 +6,6 @@ import {
   BookOpen,
   BarChart3,
   User,
-  Settings,
   LogOut,
   MessageCircle
 } from "lucide-react";
@@ -15,23 +14,36 @@ const menuItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "learning-path", label: "Learning Path", icon: RouteIcon },
   { id: "courses", label: "Courses", icon: BookOpen },
-  // ⭐ REMOVED assessment
   { id: "analytics", label: "Analytics", icon: BarChart3 },
-
-  // ⭐ NEW — StudyBuddy
   { id: "studybuddy", label: "StudyBuddy", icon: MessageCircle },
-
   { id: "profile", label: "Profile", icon: User },
-];
-
-const bottomItems = [
-  { id: "settings", label: "Settings", icon: Settings },
-  { id: "logout", label: "Logout", icon: LogOut },
 ];
 
 export default function Sidebar() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
+
+  const logout = async () => {
+    try {
+      // Optional backend logout (safe even if endpoint doesn't exist)
+      const token = localStorage.getItem("token");
+      if (token) {
+        await fetch(`${import.meta.env.VITE_API_URL}/api/auth/logout`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }).catch(() => {});
+      }
+    } finally {
+      // 🔥 CLEAR ALL CLIENT STATE
+      localStorage.removeItem("token");
+      localStorage.removeItem("roadmap");
+      localStorage.removeItem("user");
+
+      navigate("/login", { replace: true });
+    }
+  };
 
   const go = (id) => {
     // StudyBuddy
@@ -40,7 +52,7 @@ export default function Sidebar() {
       return;
     }
 
-    // Courses → use roadmap
+    // Courses → EXACT same logic as before (working)
     if (id === "courses") {
       const roadmap = JSON.parse(localStorage.getItem("roadmap"));
       if (roadmap) {
@@ -48,7 +60,7 @@ export default function Sidebar() {
         const level = roadmap.skillLevel.toLowerCase();
         navigate(`/courses/${domain}/${level}`);
       } else {
-        navigate("/assessment"); // kept same fallback if needed
+        navigate("/assessment");
       }
       return;
     }
@@ -95,18 +107,15 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* BOTTOM SETTINGS */}
-      <div className="p-4 border-t border-border space-y-1">
-        {bottomItems.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            onClick={() => go(id)}
-            className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-foreground hover:bg-secondary transition-colors"
-          >
-            <Icon className="w-5 h-5 text-muted-foreground" />
-            <span>{label}</span>
-          </button>
-        ))}
+      {/* LOGOUT */}
+      <div className="p-4 border-t border-border">
+        <button
+          onClick={logout}
+          className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-red-600 hover:bg-red-50 transition-colors"
+        >
+          <LogOut className="w-5 h-5" />
+          <span>Logout</span>
+        </button>
       </div>
     </aside>
   );
