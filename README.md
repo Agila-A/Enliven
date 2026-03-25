@@ -45,8 +45,6 @@
 
 ## 📸 Screenshots  
 
-*(Add your UI screenshots below)*  
-
 ![Dashboard](your-image-link)
 ![Learning Path](your-image-link)
 
