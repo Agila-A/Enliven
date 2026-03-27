@@ -94,9 +94,3 @@ npm start
 **Bhuvaneshwari S*  
 -Btech IT   
 
----
-
-## 💡 Inspiration  
-
-Built with the vision of making learning more **personal, intelligent, and impactful**.
-
