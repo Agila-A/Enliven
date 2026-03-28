@@ -1,6 +1,7 @@
 // controllers/proctorController.js
 import Groq from "groq-sdk";
-import ProctorAttempt from "../models/ProctorAttempt.js";
+import ProctorAttempt  from "../models/ProctorAttempt.js";
+import ChatbotContext  from "../models/ChatbotContext.js";
 
 /* ─── GROQ CLIENT ─────────────────────────────────────────────── */
 function createGroqClient() {
@@ -9,40 +10,28 @@ function createGroqClient() {
 }
 
 /* ─── JSON PARSER ─────────────────────────────────────────────────
-   BUG FIX: The old regex /\{[\s\S]*?\}/g was non-greedy — it matched
-   the SMALLEST possible object, so nested objects like {"options":["a","b"]}
-   got torn apart into broken fragments.
-
-   Fix: strip markdown fences, then find the outermost JSON array using
-   bracket-depth counting. This correctly handles nested objects/arrays.
+   Strips markdown fences then finds the outermost JSON array using
+   bracket-depth counting — handles nested objects/arrays correctly.
 ────────────────────────────────────────────────────────────────── */
 function extractJSON(raw) {
   if (!raw) throw new Error("Empty Groq response");
 
-  // Strip markdown code fences
   raw = raw.replace(/```json|```/gi, "").trim();
 
-  // Find the outermost [ ... ] using depth counting
   let start = raw.indexOf("[");
   if (start === -1) throw new Error("No JSON array found in response");
 
-  let depth = 0;
-  let end = -1;
-
+  let depth = 0, end = -1;
   for (let i = start; i < raw.length; i++) {
     if (raw[i] === "[") depth++;
-    else if (raw[i] === "]") {
-      depth--;
-      if (depth === 0) { end = i; break; }
-    }
+    else if (raw[i] === "]") { depth--; if (depth === 0) { end = i; break; } }
   }
-
-  if (end === -1) throw new Error("Unterminated JSON array in response");
+  if (end === -1) throw new Error("Unterminated JSON array");
 
   const jsonStr = raw
     .slice(start, end + 1)
-    .replace(/,\s*([}\]])/g, "$1")   // remove trailing commas
-    .replace(/[\u0000-\u001F]+/g, " "); // sanitize control chars
+    .replace(/,\s*([}\]])/g, "$1")       // trailing commas
+    .replace(/[\u0000-\u001F]+/g, " ");  // control chars
 
   return JSON.parse(jsonStr);
 }
@@ -66,12 +55,12 @@ Output ONLY a valid JSON array. No markdown, no comments, no extra text.
 `.trim();
 
   const completion = await groq.chat.completions.create({
-    model: "llama-3.1-8b-instant",
+    model:       "llama-3.1-8b-instant",
     temperature: 0.5,
-    max_tokens: 3000,
+    max_tokens:  3000,
     messages: [
       { role: "system", content: "You output only valid JSON arrays. No markdown, no explanation." },
-      { role: "user", content: prompt },
+      { role: "user",   content: prompt },
     ],
   });
 
@@ -79,16 +68,68 @@ Output ONLY a valid JSON array. No markdown, no comments, no extra text.
   if (!content) throw new Error("Groq returned empty content");
 
   const parsed = extractJSON(content);
-
   return parsed.slice(0, count).map((q, i) => ({
-    id: q.id || `q${i + 1}`,
-    question: q.question,
-    options: q.options,
+    id:           q.id || `q${i + 1}`,
+    question:     q.question,
+    options:      q.options,
     correctIndex: q.correctIndex,
-    explanation: q.explanation,
-    difficulty: q.difficulty,
+    explanation:  q.explanation,
+    difficulty:   q.difficulty,
   }));
 }
+
+/* ─── BUILD VIOLATION SUMMARY STRING ─────────────────────────── */
+function buildViolationSummary(violations = {}, flagged = false) {
+  const parts = [];
+  if (violations.tabSwitches     > 0) parts.push(`tab switches: ${violations.tabSwitches}`);
+  if (violations.faceNotDetected > 0) parts.push(`face not detected: ${violations.faceNotDetected}x`);
+  if (violations.multipleFaces   > 0) parts.push(`multiple faces detected: ${violations.multipleFaces}x`);
+  if (violations.lookingAway     > 0) parts.push(`looking away from screen: ${violations.lookingAway}x`);
+  if (violations.expressionAlert > 0) parts.push(`suspicious expression alerts: ${violations.expressionAlert}`);
+  if (violations.noCamera)            parts.push("camera was not enabled");
+
+  if (parts.length === 0) return "No proctoring violations detected.";
+  const summary = `Proctoring violations — ${parts.join(", ")}.`;
+  return flagged ? summary + " Attempt was flagged for review." : summary;
+}
+
+/* ─── INJECT ASSESSMENT RESULT INTO CHATBOT CONTEXT ──────────── */
+async function injectAssessmentIntoChatbotContext(userId, attemptData) {
+  try {
+    let ctx = await ChatbotContext.findOne({ userId });
+    if (!ctx) ctx = new ChatbotContext({ userId, context: {} });
+
+    const historyEntry = {
+      moduleId:   attemptData.moduleId,
+      score:      attemptData.score,
+      passed:     attemptData.passed,
+      flagged:    attemptData.flagged,
+      violations: attemptData.violations,
+      summary:    attemptData.summary,
+      takenAt:    new Date().toISOString(),
+    };
+
+    const prevHistory = Array.isArray(ctx.context.assessmentHistory)
+      ? ctx.context.assessmentHistory
+      : [];
+
+    ctx.context = {
+      ...ctx.context,
+      lastEvent:      "assessment_completed",
+      lastAssessment: historyEntry,
+      assessmentHistory: [...prevHistory, historyEntry].slice(-10), // keep last 10
+    };
+
+    await ctx.save();
+  } catch (err) {
+    // non-fatal — log but don't block the response
+    console.error("Failed to inject assessment into chatbot context:", err.message);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ROUTE HANDLERS
+═══════════════════════════════════════════════════════════════ */
 
 /* ─── GET MODULE QUESTIONS ────────────────────────────────────── */
 export async function getModuleQuestions(req, res) {
@@ -96,11 +137,10 @@ export async function getModuleQuestions(req, res) {
     const { moduleId } = req.params;
     const { domain, level } = req.query;
 
-    if (!domain || !level) {
+    if (!domain || !level)
       return res.status(400).json({ success: false, message: "domain and level are required" });
-    }
 
-    const topic = `Module ${moduleId} of ${domain} - ${level}`;
+    const topic = `Module ${moduleId} of ${domain} at ${level} level`;
     const questions = await generateQuestionsWithGroq({ topic, count: 10 });
 
     return res.json({ success: true, questions, moduleId, mode: "module" });
@@ -115,11 +155,10 @@ export async function getFinalQuestions(req, res) {
   try {
     const { domain, level } = req.query;
 
-    if (!domain || !level) {
+    if (!domain || !level)
       return res.status(400).json({ success: false, message: "domain and level are required" });
-    }
 
-    const topic = `Final exam for ${domain} (${level})`;
+    const topic = `Comprehensive final exam for ${domain} (${level} level)`;
     const questions = await generateQuestionsWithGroq({ topic, count: 30 });
 
     return res.json({ success: true, questions, mode: "final" });
@@ -129,29 +168,39 @@ export async function getFinalQuestions(req, res) {
   }
 }
 
-/* ─── SAVE ATTEMPT (was completely missing) ───────────────────────
-   POST /api/proctor/attempt
-   Called by frontend after the exam ends with answers + violations.
-────────────────────────────────────────────────────────────────── */
+/* ─── SAVE ATTEMPT ────────────────────────────────────────────── */
+/*
+  POST /api/proctor/attempt
+  Body: {
+    courseId, moduleId, questions, userAnswers, score,
+    violations: {
+      tabSwitches, faceNotDetected, multipleFaces,
+      lookingAway, expressionAlert, noCamera
+    },
+    flagged, reason, startedAt, endedAt
+  }
+*/
 export async function saveAttempt(req, res) {
   try {
     const userId = req.userId;
     const {
       courseId,
       moduleId,
-      questions,
-      userAnswers,
-      score,
-      violations = {},
-      flagged = false,
-      reason = "",
+      questions    = [],
+      userAnswers  = [],
+      score        = 0,
+      violations   = {},
+      flagged      = false,
+      reason       = "",
       startedAt,
       endedAt,
     } = req.body;
 
-    if (!courseId || !moduleId) {
+    if (!courseId || !moduleId)
       return res.status(400).json({ success: false, message: "courseId and moduleId are required" });
-    }
+
+    const passed  = score >= 60;
+    const summary = buildViolationSummary(violations, flagged);
 
     const attempt = await ProctorAttempt.create({
       userId,
@@ -160,14 +209,39 @@ export async function saveAttempt(req, res) {
       questions,
       userAnswers,
       score,
-      violations,
+      passed,
+      violations: {
+        tabSwitches:     violations.tabSwitches     || 0,
+        faceNotDetected: violations.faceNotDetected || 0,
+        multipleFaces:   violations.multipleFaces   || 0,
+        lookingAway:     violations.lookingAway     || 0,
+        expressionAlert: violations.expressionAlert || 0,
+        noCamera:        violations.noCamera        || false,
+      },
       flagged,
       reason,
+      summary,
       startedAt: startedAt ? new Date(startedAt) : new Date(),
-      endedAt: endedAt ? new Date(endedAt) : new Date(),
+      endedAt:   endedAt   ? new Date(endedAt)   : new Date(),
     });
 
-    return res.status(201).json({ success: true, attemptId: attempt._id, score });
+    /* ── Push assessment result into Study Buddy context ── */
+    await injectAssessmentIntoChatbotContext(userId, {
+      moduleId,
+      score,
+      passed,
+      flagged,
+      violations: attempt.violations,
+      summary,
+    });
+
+    return res.status(201).json({
+      success: true,
+      attemptId: attempt._id,
+      score,
+      passed,
+      summary,
+    });
   } catch (err) {
     console.error("saveAttempt error:", err);
     return res.status(500).json({ success: false, message: "Failed to save attempt" });
@@ -184,7 +258,7 @@ export async function getUserAttempts(req, res) {
     if (courseId) filter.courseId = courseId;
 
     const attempts = await ProctorAttempt.find(filter)
-      .select("-questions") // don't send full question list back
+      .select("-questions")   // don't send full question list
       .sort({ createdAt: -1 })
       .lean();
 
@@ -192,5 +266,31 @@ export async function getUserAttempts(req, res) {
   } catch (err) {
     console.error("getUserAttempts error:", err);
     return res.status(500).json({ success: false, message: "Failed to fetch attempts" });
+  }
+}
+
+/* ─── GET LATEST ATTEMPT FOR A MODULE ────────────────────────── */
+/*
+  GET /api/proctor/attempt/:moduleId?courseId=xxx
+  Used by frontend to check if user already passed a module.
+*/
+export async function getModuleAttempt(req, res) {
+  try {
+    const userId   = req.userId;
+    const { moduleId } = req.params;
+    const { courseId } = req.query;
+
+    if (!courseId)
+      return res.status(400).json({ success: false, message: "courseId is required" });
+
+    const attempt = await ProctorAttempt.findOne({ userId, courseId, moduleId })
+      .select("-questions")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.json({ success: true, attempt: attempt || null });
+  } catch (err) {
+    console.error("getModuleAttempt error:", err);
+    return res.status(500).json({ success: false, message: "Failed to fetch module attempt" });
   }
 }

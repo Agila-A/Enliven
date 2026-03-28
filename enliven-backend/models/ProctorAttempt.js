@@ -1,31 +1,51 @@
 // models/ProctorAttempt.js
 import mongoose from "mongoose";
 
-const attemptSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+const attemptSchema = new mongoose.Schema(
+  {
+    userId:   { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    courseId: { type: String, required: true }, // e.g. "webdevelopment-beginner"
+    moduleId: { type: String, required: true }, // e.g. "1" or "final"
 
-  // BUG FIX: was ObjectId ref:"Course" — there is no Course model.
-  // courseId is a string like "webdevelopment-beginner", so type must be String.
-  courseId: { type: String, required: true },
+    questions:   { type: Array, default: [] },
+    userAnswers: { type: Array, default: [] },
+    score:       { type: Number, default: 0 },      // percentage 0–100
+    passed:      { type: Boolean, default: false },  // score >= 60
 
-  moduleId: { type: String, required: true },
+    /* ── Proctoring violation counts ── */
+    violations: {
+      tabSwitches:      { type: Number, default: 0 }, // left the exam tab
+      faceNotDetected:  { type: Number, default: 0 }, // no face in frame
+      multipleFaces:    { type: Number, default: 0 }, // >1 face detected
+      lookingAway:      { type: Number, default: 0 }, // head pose deviation
+      expressionAlert:  { type: Number, default: 0 }, // suspicious expression
+      noCamera:         { type: Boolean, default: false }, // camera was denied
+    },
 
-  questions: Array,
-  userAnswers: Array,
-  score: Number,
+    flagged: { type: Boolean, default: false },
+    reason:  { type: String,  default: "" },   // human-readable flag reason
 
-  // Proctoring violation data
-  violations: {
-    tabSwitches: { type: Number, default: 0 },
-    faceNotDetected: { type: Number, default: 0 },
-    multipleFaces: { type: Number, default: 0 },
+    startedAt: { type: Date },
+    endedAt:   { type: Date },
+
+    /* quick summary sent to Study Buddy */
+    summary: { type: String, default: "" },
   },
+  { timestamps: true }
+);
 
-  flagged: { type: Boolean, default: false },
-  reason: String,
+/* ── Virtual: total violation count ── */
+attemptSchema.virtual("totalViolations").get(function () {
+  const v = this.violations;
+  return (
+    (v.tabSwitches     || 0) +
+    (v.faceNotDetected || 0) +
+    (v.multipleFaces   || 0) +
+    (v.lookingAway     || 0) +
+    (v.expressionAlert || 0)
+  );
+});
 
-  startedAt: Date,
-  endedAt: Date,
-}, { timestamps: true });
+attemptSchema.set("toJSON", { virtuals: true });
 
 export default mongoose.model("ProctorAttempt", attemptSchema);

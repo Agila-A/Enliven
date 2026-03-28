@@ -2,20 +2,31 @@
 import mongoose from "mongoose";
 
 const messageSchema = new mongoose.Schema({
-  sender: { type: String, enum: ["user", "assistant"], required: true },
-  text:   { type: String, required: true },
-  timestamp: { type: Date, default: Date.now },
+  sender:    { type: String, enum: ["user", "assistant"], required: true },
+  text:      { type: String, required: true },
+  timestamp: { type: Date,   default: Date.now },
 });
 
 const contextSchema = new mongoose.Schema({
-  // BUG FIX: was plain String — should be ObjectId to match User._id
-  // and allow proper population/lookup
   userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
+    type:     mongoose.Schema.Types.ObjectId,
+    ref:      "User",
     required: true,
-    unique: true,
+    unique:   true,
   },
+
+  /*
+    context holds everything Study Buddy knows about the user:
+    {
+      domain, skillLevel, currentModule, completedModules,
+      lastEvent,
+      // injected after each assessment:
+      lastAssessment: {
+        moduleId, score, passed, violations: {...}, flagged, summary
+      },
+      assessmentHistory: [ ...same shape... ]
+    }
+  */
   context:  { type: Object,          default: {} },
   messages: { type: [messageSchema], default: [] },
 });
