@@ -12,35 +12,40 @@ export default function Login() {
   };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  setLoading(true);
-  setError("");
+    e.preventDefault();
+    setLoading(true);
+    setError("");
 
-  try {
-    const res = await fetch("http://localhost:5000/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(form),
-    });
+    try {
+      // BUG FIX: was hardcoded "http://localhost:5000" — use env variable
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(form),
+      });
 
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
 
-    // Store login info
-    localStorage.setItem("loggedIn", "true");
-    localStorage.setItem("token", data.token);
+      localStorage.setItem("loggedIn", "true");
+      localStorage.setItem("token", data.token);
 
-    // ⭐ ALWAYS go to dashboard
-    navigate("/dashboard");
+      // BUG FIX: after login, check if user has a domain set.
+      // If not (e.g. they just registered and came back), send them to domain selection.
+      // If yes, go straight to dashboard.
+      if (!data.user?.domain) {
+        navigate("/select-domain");
+      } else {
+        navigate("/dashboard");
+      }
 
-  } catch (err) {
-    setError(err.message);
-  } finally {
-    setLoading(false);
-  }
-};
-
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex justify-center items-center bg-gradient-to-br from-emerald-100 to-sky-100 p-4">
@@ -56,6 +61,7 @@ export default function Login() {
             type="email"
             name="email"
             placeholder="Email"
+            value={form.email}
             onChange={handleChange}
             required
             className="w-full px-4 py-2 rounded-lg border"
@@ -65,6 +71,7 @@ export default function Login() {
             type="password"
             name="password"
             placeholder="Password"
+            value={form.password}
             onChange={handleChange}
             required
             className="w-full px-4 py-2 rounded-lg border"
@@ -80,7 +87,7 @@ export default function Login() {
         </form>
 
         <p className="text-center mt-4 text-slate-600">
-          New here?
+          New here?{" "}
           <span
             className="text-emerald-600 ml-1 cursor-pointer font-semibold"
             onClick={() => navigate("/signup")}

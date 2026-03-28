@@ -1,9 +1,10 @@
+// models/User.js
 import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true, trim: true },
-    email: { type: String, required: true, unique: true, lowercase: true },
+    name:     { type: String, required: true, trim: true },
+    email:    { type: String, required: true, unique: true, lowercase: true },
     password: { type: String, required: true, minlength: 6 },
 
     role: {
@@ -12,45 +13,48 @@ const userSchema = new mongoose.Schema(
       default: "student",
     },
 
-    domain: { type: String, default: null },
+    domain:     { type: String, default: null },
     skillLevel: { type: String, default: null },
 
     // Profile fields
-    bio: { type: String, default: "No bio added yet." },
+    bio:      { type: String, default: "No bio added yet." },
     location: { type: String, default: "" },
-    avatar: { type: String, default: "" },
+    avatar:   { type: String, default: "" },
 
-    // Streak fields (keep)
-    streak: { type: Number, default: 0 },
-    longestStreak: { type: Number, default: 0 },
+    // ── Streak fields ──────────────────────────────────────────
+    streak:         { type: Number, default: 0 },
+    longestStreak:  { type: Number, default: 0 },
+    // NEW: tracks the last calendar day the user was active (UTC midnight).
+    // Required for streak logic — without this we can't know if yesterday was visited.
+    lastActiveDate: { type: Date, default: null },
 
     // Saved Resources
     savedResources: [
       {
-        title: String,
-        type: String,
-        link: String,
+        title:     String,
+        type:      String,
+        link:      String,
         savedDate: String,
       },
     ],
-    badges: [
-  {
-    id: String,
-    name: String,
-    description: String,
-    icon: String,
-    awardedOn: Date
-  }
-],
 
+    badges: [
+      {
+        id:          String,
+        name:        String,
+        description: String,
+        icon:        String,
+        awardedOn:   Date,
+      },
+    ],
 
     achievements: [
       {
-        title: String,
+        title:       String,
         description: String,
-        unlocked: Boolean,
-        icon: String,
-        date: String,
+        unlocked:    Boolean,
+        icon:        String,
+        date:        String,
       },
     ],
   },

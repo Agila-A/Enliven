@@ -17,7 +17,8 @@ export default function Signup() {
     setError("");
 
     try {
-      const res = await fetch("http://localhost:5000/api/auth/register", {
+      // BUG FIX: was hardcoded "http://localhost:5000" — use env variable
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -27,12 +28,14 @@ export default function Signup() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
 
-      // ⭐ AUTO‑LOGIN RIGHT AFTER REGISTRATION
+      // Store auth info immediately after registration
       localStorage.setItem("loggedIn", "true");
       localStorage.setItem("token", data.token);
 
-      alert("Account created! Let's get started.");
-      navigate("/select-domain"); // ⭐ redirect to domain selection
+      // BUG FIX: removed alert() — it blocks rendering and feels broken.
+      // Navigate directly to domain selection (new user never has a domain yet).
+      navigate("/select-domain");
+
     } catch (err) {
       setError(err.message);
     } finally {
@@ -43,7 +46,9 @@ export default function Signup() {
   return (
     <div className="min-h-screen flex justify-center items-center bg-gradient-to-br from-sky-100 to-emerald-100 p-4">
       <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-200">
-        <h1 className="text-3xl font-bold text-sky-700 text-center mb-6">Create Account</h1>
+        <h1 className="text-3xl font-bold text-sky-700 text-center mb-6">
+          Create Account
+        </h1>
 
         {error && <p className="text-red-600 text-center mb-3">{error}</p>}
 
@@ -51,6 +56,7 @@ export default function Signup() {
           <input
             name="name"
             placeholder="Full Name"
+            value={form.name}
             onChange={handleChange}
             required
             className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:border-sky-500 focus:outline-none"
@@ -60,6 +66,7 @@ export default function Signup() {
             type="email"
             name="email"
             placeholder="Email"
+            value={form.email}
             onChange={handleChange}
             required
             className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:border-sky-500 focus:outline-none"
@@ -69,6 +76,7 @@ export default function Signup() {
             type="password"
             name="password"
             placeholder="Password"
+            value={form.password}
             onChange={handleChange}
             required
             className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:border-sky-500 focus:outline-none"
@@ -84,7 +92,7 @@ export default function Signup() {
         </form>
 
         <p className="text-center mt-4 text-slate-600">
-          Already have an account?
+          Already have an account?{" "}
           <span
             className="text-sky-600 ml-1 cursor-pointer font-semibold"
             onClick={() => navigate("/login")}

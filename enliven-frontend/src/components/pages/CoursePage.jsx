@@ -1,5 +1,12 @@
-/*  
+/*
   COURSEPAGE.JSX — MODULE LOCKING + MODULE TESTS + FINAL TEST
+  
+  KEY FIXES:
+  1. Module unlock gate now reads moduleStatus from the DB (via /api/progress/:courseId),
+     NOT from localStorage — so progress persists after logout/login.
+  2. The first module is always unlocked for new users.
+  3. Sections correctly start locked except module 1.
+  4. "Take Test" only appears when ALL videos in a section are completed.
 */
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -12,7 +19,7 @@ import {
   ChevronRight,
   FileText,
   Download,
-  LoaderCircle
+  LoaderCircle,
 } from "lucide-react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "../ui/button";
@@ -21,10 +28,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "../ui/tabs";
 import { updateStudyBuddyContext } from "../../utils/studyBuddy.js";
 
 const toTitleCase = (s = "") =>
-  s
-    .replace(/-/g, " ")
-    .split(" ")
-    .filter(Boolean)
+  s.replace(/-/g, " ").split(" ").filter(Boolean)
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
     .join(" ");
 
@@ -56,7 +60,7 @@ function normalizeProgress(progressArray = []) {
     }
     map.set(String(p.topicId), {
       videoProgress: vp,
-      currentIndex: Number(p.currentIndex ?? 0)
+      currentIndex: Number(p.currentIndex ?? 0),
     });
   }
   return map;
@@ -80,6 +84,10 @@ export default function CoursePage() {
   const [autoNotes, setAutoNotes] = useState("");
   const [error, setError] = useState("");
 
+  // BUG FIX: moduleStatus now lives in state (loaded from DB), not localStorage.
+  // This is the source of truth for which modules are unlocked after login.
+  const [moduleStatus, setModuleStatus] = useState({}); // { "1": "completed", "2": "completed", ... }
+
   useEffect(() => {
     let mounted = true;
 
@@ -90,6 +98,7 @@ export default function CoursePage() {
       try {
         const token = localStorage.getItem("token");
 
+        // Fetch course content (merged roadmap + JSON videos)
         const res = await fetch(
           `${import.meta.env.VITE_API_URL}/api/courses/${domain}/${level}/merged`,
           { headers: { Authorization: `Bearer ${token}` } }
@@ -105,14 +114,23 @@ export default function CoursePage() {
 
         const items = Array.isArray(data.items) ? data.items : [];
 
+        // Fetch progress from DB (persists across logout/login)
         const pres = await fetch(
           `${import.meta.env.VITE_API_URL}/api/progress/${courseId}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
 
-        const pjson = pres.ok ? await pres.json() : { success: true, progress: [] };
+        const pjson = pres.ok
+          ? await pres.json()
+          : { success: true, progress: [], moduleStatus: {}, finalCompleted: false };
+
         const progressMap = normalizeProgress(pjson.progress || []);
 
+        // BUG FIX: load moduleStatus from DB response (not localStorage)
+        const dbModuleStatus = pjson.moduleStatus || {};
+        if (mounted) setModuleStatus(dbModuleStatus);
+
+        // Build sections
         const builtSections = items.map((step) => {
           const topicId = buildTopicId(step.sequenceNumber);
           const lessons = [];
@@ -125,7 +143,7 @@ export default function CoursePage() {
               type: "video",
               status: "locked",
               topicId,
-              videoIndex: vidx
+              videoIndex: vidx,
             });
           });
 
@@ -137,7 +155,7 @@ export default function CoursePage() {
               type: "reading",
               status: "locked",
               topicId,
-              videoIndex: null
+              videoIndex: null,
             });
           });
 
@@ -145,27 +163,29 @@ export default function CoursePage() {
             id: String(step.sequenceNumber),
             title: step.title,
             expanded: false,
-            lessons
+            lessons,
           };
         });
 
-        // UNLOCK NEXT MODULES (if previous module test is done)
+        // BUG FIX: determine which modules are unlocked using DB moduleStatus.
+        // Module 1 is always unlocked.
+        // Module N is unlocked only if module N-1's test is "completed" in DB.
         for (let i = 0; i < builtSections.length; i++) {
           const sec = builtSections[i];
-          const prevModuleId = builtSections[i - 1]?.id;
+          const isFirstModule = i === 0;
+          const prevModuleId = i > 0 ? builtSections[i - 1].id : null;
+          const prevTestPassed = prevModuleId
+            ? dbModuleStatus[prevModuleId] === "completed"
+            : false;
 
-          if (!prevModuleId) continue;
+          const isUnlocked = isFirstModule || prevTestPassed;
 
-          const testKey = `test-${domain}-${level}-${prevModuleId}`;
-          const testDone = localStorage.getItem(testKey) === "done";
-
-          if (testDone) {
-            sec.expanded = true;
-
-            let unlocked = false;
+          if (isUnlocked) {
+            // Unlock the first video in this section
+            let firstVideoUnlocked = false;
             sec.lessons = sec.lessons.map((lesson) => {
-              if (!unlocked && lesson.type === "video") {
-                unlocked = true;
+              if (!firstVideoUnlocked && lesson.type === "video") {
+                firstVideoUnlocked = true;
                 return { ...lesson, status: "current" };
               }
               return lesson;
@@ -173,6 +193,7 @@ export default function CoursePage() {
           }
         }
 
+        // Overlay saved progress on top of the unlock state
         let initialActive = null;
 
         for (const sec of builtSections) {
@@ -193,9 +214,7 @@ export default function CoursePage() {
 
           if (currentVideoLesson) {
             currentVideoLesson.status =
-              currentVideoLesson.status === "completed"
-                ? "completed"
-                : "current";
+              currentVideoLesson.status === "completed" ? "completed" : "current";
 
             if (!initialActive) {
               initialActive = currentVideoLesson;
@@ -204,6 +223,7 @@ export default function CoursePage() {
           }
         }
 
+        // Default: open the first lesson of module 1 if nothing is in progress
         if (!initialActive && builtSections[0]?.lessons[0]) {
           builtSections[0].expanded = true;
           builtSections[0].lessons[0].status = "current";
@@ -223,9 +243,7 @@ export default function CoursePage() {
     }
 
     load();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [domain, level, courseId]);
 
   const flatLessons = () => sections.flatMap((s) => s.lessons);
@@ -250,21 +268,25 @@ export default function CoursePage() {
   const allModulesCompleted =
     sections.length > 0 && sections.every(isSectionCompleted);
 
-  const saveProgress = async ({ topicId, videoProgressMap, currentIndex }) => {
+  // Save video progress to DB
+  // FIX: also send videoCount (total videos in this topic) so dashboard
+  // can calculate accurate overall progress % across all modules.
+  const saveProgress = async ({ topicId, videoProgressMap, currentIndex, videoCount }) => {
     try {
       const token = localStorage.getItem("token");
       await fetch(`${import.meta.env.VITE_API_URL}/api/progress/save`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           courseId,
           topicId,
           videoProgress: mapToObj(videoProgressMap),
-          currentIndex
-        })
+          currentIndex,
+          videoCount, // real total for this topic from merged course content
+        }),
       });
     } catch (e) {
       console.error("Progress save error:", e);
@@ -279,7 +301,7 @@ export default function CoursePage() {
         ...sec,
         lessons: sec.lessons.map((les) =>
           les.id === activeLesson.id ? { ...les, status: "completed" } : les
-        )
+        ),
       }));
 
       const all = updated.flatMap((s) => s.lessons);
@@ -289,6 +311,7 @@ export default function CoursePage() {
       const currentTopicId = activeLesson.topicId;
       const currentSection = updated.find((s) => s.id === currentTopicId);
 
+      // Save video progress to DB
       if (currentSection) {
         const videoProgressMap = new Map();
         for (const les of currentSection.lessons) {
@@ -299,10 +322,7 @@ export default function CoursePage() {
 
         let currentIndex = 0;
         const firstPending = currentSection.lessons.find(
-          (l) =>
-            l.type === "video" &&
-            l.videoIndex != null &&
-            l.status !== "completed"
+          (l) => l.type === "video" && l.videoIndex != null && l.status !== "completed"
         );
 
         if (firstPending && typeof firstPending.videoIndex === "number") {
@@ -312,56 +332,50 @@ export default function CoursePage() {
           currentIndex = keys.length ? Math.max(...keys) : 0;
         }
 
+        // Count total videos in this section from the lessons array
+        const totalVideosInSection = currentSection.lessons.filter(
+          l => l.type === "video" && l.videoIndex != null
+        ).length;
+
         saveProgress({
           topicId: currentTopicId,
           videoProgressMap,
-          currentIndex
+          currentIndex,
+          videoCount: totalVideosInSection, // FIX: send real total
         });
       }
 
-      // ====== FIXED MODULE UNLOCK BLOCK ======
+      // Unlock next lesson within same module
       if (next && next.status === "locked") {
         const nextModuleId = next.topicId;
         const currentModuleId = currentTopicId;
 
         if (nextModuleId === currentModuleId) {
+          // Next video is in same module — unlock it
           updated.forEach((sec) => {
             sec.lessons = sec.lessons.map((l) =>
               l.id === next.id ? { ...l, status: "current" } : l
             );
+            if (sec.lessons.some((l) => l.id === next.id)) sec.expanded = true;
           });
-
-          updated.forEach((sec) => {
-            if (sec.lessons.some((l) => l.id === next.id))
-              sec.expanded = true;
-          });
-
           setTimeout(() => setActiveLesson(next), 0);
         } else {
-          const testKey = `test-${domain}-${level}-${currentModuleId}`;
-          let testDone = localStorage.getItem(testKey) === "done";
+          // BUG FIX: check DB moduleStatus (in state), not localStorage
+          const testPassed = moduleStatus[currentModuleId] === "completed";
 
-          if (!testDone) {
-            testDone = localStorage.getItem(testKey) === "done";
-          }
-
-          if (!testDone) {
-            alert("Please take the module test to unlock the next module.");
+          if (!testPassed) {
+            alert("Complete the module test to unlock the next module.");
             setTimeout(() => setActiveLesson(activeLesson), 0);
             return updated;
           }
 
+          // Module test passed — unlock first lesson of next module
           updated.forEach((sec) => {
             sec.lessons = sec.lessons.map((l) =>
               l.id === next.id ? { ...l, status: "current" } : l
             );
+            if (sec.lessons.some((l) => l.id === next.id)) sec.expanded = true;
           });
-
-          updated.forEach((sec) => {
-            if (sec.lessons.some((l) => l.id === next.id))
-              sec.expanded = true;
-          });
-
           setTimeout(() => setActiveLesson(next), 0);
         }
       } else {
@@ -374,28 +388,42 @@ export default function CoursePage() {
     await updateStudyBuddyContext({
       step: "lesson_completed",
       lessonTitle: activeLesson.title,
-      module: activeLesson.topicId
+      module: activeLesson.topicId,
     });
+  };
+
+  // Called when the user returns from the assessment page after passing a module test.
+  // We refresh moduleStatus from the DB so the next module unlocks immediately.
+  const refreshModuleStatus = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const pres = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/progress/${courseId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (pres.ok) {
+        const pjson = await pres.json();
+        setModuleStatus(pjson.moduleStatus || {});
+      }
+    } catch (e) {
+      console.error("moduleStatus refresh error:", e);
+    }
   };
 
   const generateNotes = async () => {
     if (!activeLesson?.title) return;
-
     setNotesLoading(true);
     setAutoNotes("");
-
     try {
       const token = localStorage.getItem("token");
-
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/notes/generate`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ videoTitle: activeLesson.title })
+        body: JSON.stringify({ videoTitle: activeLesson.title }),
       });
-
       const data = await res.json();
       if (data.success) setAutoNotes(data.notes);
     } catch (e) {
@@ -452,19 +480,12 @@ export default function CoursePage() {
 
             <TabsContent value="overview">
               <div className="p-4 border rounded-xl mt-4 bg-card">
-                <h2 className="font-semibold text-xl">
-                  {activeLesson?.title}
-                </h2>
+                <h2 className="font-semibold text-xl">{activeLesson?.title}</h2>
                 {activeLesson?.resource && (
                   <div className="mt-4">
-                    <a
-                      href={activeLesson.resource}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
+                    <a href={activeLesson.resource} target="_blank" rel="noreferrer">
                       <Button variant="outline">
-                        <Download className="w-4 h-4 mr-2" /> Download
-                        Resource
+                        <Download className="w-4 h-4 mr-2" /> Download Resource
                       </Button>
                     </a>
                   </div>
@@ -481,7 +502,6 @@ export default function CoursePage() {
                     "✨ Generate Notes"
                   )}
                 </Button>
-
                 {autoNotes && (
                   <div className="mt-4 prose">
                     <ReactMarkdown>{autoNotes}</ReactMarkdown>
@@ -493,78 +513,104 @@ export default function CoursePage() {
         </div>
       </div>
 
+      {/* Sidebar */}
       <div className="w-96 bg-card border-l overflow-y-auto p-6">
         <h2 className="text-xl font-semibold mb-4">Course Content</h2>
 
-        {sections.map((section) => (
-          <div key={section.id} className="border rounded-lg mb-2">
-            <button
-              onClick={() =>
-                setSections((prev) =>
-                  prev.map((s) =>
-                    s.id === section.id
-                      ? { ...s, expanded: !s.expanded }
-                      : s
+        {sections.map((section) => {
+          const isLocked =
+            section.id !== "1" &&
+            !section.lessons.some((l) => l.status !== "locked");
+
+          return (
+            <div key={section.id} className="border rounded-lg mb-2">
+              <button
+                onClick={() =>
+                  setSections((prev) =>
+                    prev.map((s) =>
+                      s.id === section.id ? { ...s, expanded: !s.expanded } : s
+                    )
                   )
-                )
-              }
-              className="w-full flex justify-between p-4"
-            >
-              <span className="font-semibold">{section.title}</span>
-              {section.expanded ? <ChevronDown /> : <ChevronRight />}
-            </button>
+                }
+                className="w-full flex justify-between items-center p-4"
+              >
+                <div className="flex items-center gap-2">
+                  {isLocked && <Lock className="w-4 h-4 text-gray-400" />}
+                  <span className="font-semibold text-left">{section.title}</span>
+                </div>
+                {section.expanded ? <ChevronDown /> : <ChevronRight />}
+              </button>
 
-            {section.expanded && (
-              <div>
-                {section.lessons.map((lesson) => (
-                  <button
-                    key={lesson.id}
-                    onClick={() =>
-                      lesson.status !== "locked" && setActiveLesson(lesson)
-                    }
-                    disabled={lesson.status === "locked"}
-                    className={`w-full flex items-center p-4 space-x-3 text-left ${
-                      activeLesson?.id === lesson.id ? "bg-primary/10" : ""
-                    } ${
-                      lesson.status === "locked"
-                        ? "opacity-50 cursor-not-allowed"
-                        : ""
-                    }`}
-                  >
-                    {iconFor(lesson)}
-                    <div className="flex-1">
-                      <p className="font-medium">{lesson.title}</p>
+              {section.expanded && (
+                <div>
+                  {section.lessons.map((lesson) => (
+                    <button
+                      key={lesson.id}
+                      onClick={() =>
+                        lesson.status !== "locked" && setActiveLesson(lesson)
+                      }
+                      disabled={lesson.status === "locked"}
+                      className={`w-full flex items-center p-4 space-x-3 text-left ${
+                        activeLesson?.id === lesson.id ? "bg-primary/10" : ""
+                      } ${
+                        lesson.status === "locked"
+                          ? "opacity-50 cursor-not-allowed"
+                          : ""
+                      }`}
+                    >
+                      {iconFor(lesson)}
+                      <div className="flex-1">
+                        <p className="font-medium">{lesson.title}</p>
+                      </div>
+                    </button>
+                  ))}
+
+                  {/* Take Test button — only after ALL videos in this module are done */}
+                  {isSectionCompleted(section) &&
+                    moduleStatus[section.id] !== "completed" && (
+                      <button
+                        onClick={() =>
+                          navigate(
+                            `/assessment?module=${section.id}&domain=${domain}&level=${level}`
+                          )
+                        }
+                        className="w-full mt-3 mb-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                      >
+                        Take Module Test
+                      </button>
+                    )}
+
+                  {/* Show passed badge if module test is done */}
+                  {moduleStatus[section.id] === "completed" && (
+                    <div className="mx-4 mb-4 py-2 px-4 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm text-center">
+                      ✅ Module test passed
                     </div>
-                  </button>
-                ))}
-
-                {isSectionCompleted(section) && (
-                  <button
-                    onClick={() =>
-                      navigate(
-                        `/assessment?module=${section.id}&domain=${domain}&level=${level}`
-                      )
-                    }
-                    className="w-full mt-3 mb-4 px-4 py-2 bg-blue-600 text-white rounded-lg"
-                  >
-                    Take Test
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
 
         {allModulesCompleted && (
           <button
             onClick={() =>
-              navigate(`/assessment?final=true&domain=${domain}&level=${level}`)
+              navigate(
+                `/assessment?final=true&domain=${domain}&level=${level}`
+              )
             }
-            className="w-full mt-6 py-3 bg-purple-600 text-white rounded-xl"
+            className="w-full mt-6 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition"
           >
-            Take Final Test
+            🏆 Take Final Test
           </button>
         )}
+
+        {/* Hidden refresh trigger — called after returning from assessment */}
+        <button
+          className="hidden"
+          id="refresh-module-status"
+          onClick={refreshModuleStatus}
+        />
       </div>
     </div>
   );

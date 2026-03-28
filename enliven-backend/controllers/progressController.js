@@ -1,13 +1,10 @@
 // controllers/progressController.js
 import Progress from "../models/Progress.js";
 
-/* --------------------------------------------------
-   HELPERS
--------------------------------------------------- */
+/* ─── HELPERS ─────────────────────────────────────────────────── */
 
 const ensureProgressDoc = async (userId, courseId) => {
   let doc = await Progress.findOne({ userId, courseId });
-
   if (!doc) {
     doc = await Progress.create({
       userId,
@@ -17,53 +14,45 @@ const ensureProgressDoc = async (userId, courseId) => {
       finalCompleted: false,
     });
   }
-
   return doc;
 };
 
 const normalizeMap = (map) => {
-  // Always return a plain JS object (NOT mongoose map)
   if (!map) return {};
   if (map instanceof Map) return Object.fromEntries(map);
   if (typeof map === "object") return { ...map };
   return {};
 };
 
-const upsertTopic = (doc, topicId, videoProgressPatch, currentIndex) => {
+// FIX: accept videoCount and store it on the topic row
+const upsertTopic = (doc, topicId, videoProgressPatch, currentIndex, videoCount) => {
   const tid = String(topicId);
-
   let topic = doc.progress.find(p => String(p.topicId) === tid);
 
   if (!topic) {
-    topic = {
-      topicId: tid,
-      videoProgress: {},
-      currentIndex: 0,
-    };
+    topic = { topicId: tid, videoProgress: {}, currentIndex: 0, videoCount: 0 };
     doc.progress.push(topic);
   }
 
-  // 🔥 SAFE merge (no mongoose internals)
   const existing = normalizeMap(topic.videoProgress);
   const incoming = normalizeMap(videoProgressPatch);
+  topic.videoProgress = { ...existing, ...incoming };
 
-  topic.videoProgress = {
-    ...existing,
-    ...incoming,
-  };
+  if (typeof currentIndex === "number") topic.currentIndex = currentIndex;
 
-  if (typeof currentIndex === "number") {
-    topic.currentIndex = currentIndex;
+  // Always update videoCount if a valid value is sent — this is the actual
+  // total from the merged course JSON, so it's authoritative.
+  if (typeof videoCount === "number" && videoCount > 0) {
+    topic.videoCount = videoCount;
   }
 };
 
-/* --------------------------------------------------
-   POST /api/progress/save
--------------------------------------------------- */
+/* ─── POST /api/progress/save ─────────────────────────────────── */
 export const saveProgress = async (req, res) => {
   try {
     const userId = req.userId;
-    const { courseId, topicId, videoProgress = {}, currentIndex } = req.body;
+    // FIX: destructure videoCount from body
+    const { courseId, topicId, videoProgress = {}, currentIndex, videoCount } = req.body;
 
     if (!userId || !courseId || !topicId) {
       return res.status(400).json({
@@ -73,24 +62,17 @@ export const saveProgress = async (req, res) => {
     }
 
     const doc = await ensureProgressDoc(userId, courseId);
-
-    upsertTopic(doc, topicId, videoProgress, currentIndex);
-
+    upsertTopic(doc, topicId, videoProgress, currentIndex, videoCount);
     await doc.save();
 
     res.json({ success: true });
   } catch (err) {
     console.error("saveProgress error:", err);
-    res.status(500).json({
-      success: false,
-      message: "Failed to save progress",
-    });
+    res.status(500).json({ success: false, message: "Failed to save progress" });
   }
 };
 
-/* --------------------------------------------------
-   GET /api/progress/:courseId
--------------------------------------------------- */
+/* ─── GET /api/progress/:courseId ─────────────────────────────── */
 export const getProgressForCourse = async (req, res) => {
   try {
     const userId = req.userId;
@@ -107,23 +89,17 @@ export const getProgressForCourse = async (req, res) => {
 
     res.json({
       success: true,
-      progress: doc?.progress || [],
-      moduleStatus: doc?.moduleStatus || {},
-      finalCompleted: Boolean(doc?.finalCompleted),
+      progress:        doc?.progress     || [],
+      moduleStatus:    doc?.moduleStatus || {},
+      finalCompleted:  Boolean(doc?.finalCompleted),
     });
   } catch (err) {
     console.error("getProgressForCourse error:", err);
-    res.status(500).json({
-      success: false,
-      message: "Failed to load progress",
-    });
+    res.status(500).json({ success: false, message: "Failed to load progress" });
   }
 };
 
-/* --------------------------------------------------
-   POST /api/progress/assessment
-   type: "module" | "final"
--------------------------------------------------- */
+/* ─── POST /api/progress/assessment ───────────────────────────── */
 export const saveAssessmentProgress = async (req, res) => {
   try {
     const userId = req.userId;
@@ -145,7 +121,6 @@ export const saveAssessmentProgress = async (req, res) => {
           message: "moduleId required for module assessment",
         });
       }
-
       const map = normalizeMap(doc.moduleStatus);
       map[String(moduleId)] = "completed";
       doc.moduleStatus = map;
@@ -159,9 +134,6 @@ export const saveAssessmentProgress = async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error("saveAssessmentProgress error:", err);
-    res.status(500).json({
-      success: false,
-      message: "Failed to save assessment progress",
-    });
+    res.status(500).json({ success: false, message: "Failed to save assessment progress" });
   }
 };

@@ -9,7 +9,6 @@ export const getLearningPathOverview = async (req, res) => {
   try {
     const userId = req.userId;
 
-    // one active roadmap per user
     const roadmap = await Roadmap.findOne({ userId }).lean();
     if (!roadmap) {
       return res.json({
@@ -27,13 +26,10 @@ export const getLearningPathOverview = async (req, res) => {
     const levelSlug  = lvl(roadmap.skillLevel);
     const courseId   = `${domainSlug}-${levelSlug}`;
 
-    // get saved progress doc for this course
     const progDoc = await Progress.findOne({ userId, courseId }).lean();
 
-    // We only have per-topic videoProgress and currentIndex here.
-    // The “videosTotal” comes later inside CoursePage from merged JSON. For learning path,
-    // we’ll display per-topic percent using only saved info: if nothing is saved => 0%.
-    const progressMap = new Map(); // topicId -> { currentIndex, videoProgress }
+    // Build a map: topicId → { currentIndex, videoProgress }
+    const progressMap = new Map();
     if (progDoc?.progress) {
       for (const p of progDoc.progress) {
         progressMap.set(String(p.topicId), {
@@ -43,8 +39,9 @@ export const getLearningPathOverview = async (req, res) => {
       }
     }
 
-    // Summaries (without knowing exact total videos yet -> we derive % by ratio of completed flags we have)
-    let aggDone = 0, aggTotal = 0;
+    let aggDone = 0;
+    let aggTotal = 0;
+
     const topics = (roadmap.topics || [])
       .slice()
       .sort((a, b) => (a.sequenceNumber || 0) - (b.sequenceNumber || 0))
@@ -52,13 +49,26 @@ export const getLearningPathOverview = async (req, res) => {
         const topicId = String(step.sequenceNumber);
         const p = progressMap.get(topicId);
 
-        const doneCount = p ? Object.values(p.videoProgress || {}).filter(Boolean).length : 0;
-        const totalSeen = p ? Object.keys(p.videoProgress || {}).length : 0;
+        const doneCount = p
+          ? Object.values(p.videoProgress).filter(Boolean).length
+          : 0;
+
+        // BUG FIX: use actual video count from roadmap topic as denominator.
+        // Old code used Object.keys(videoProgress).length — that only counts
+        // videos the user has *opened*, so a topic with 5 videos where 0 were
+        // opened shows 0% correctly but one opened shows 100% prematurely.
+        const totalVideos = step.videos?.length || 0;
 
         aggDone  += doneCount;
-        aggTotal += totalSeen;
+        aggTotal += totalVideos;
 
-        const percent = totalSeen ? Math.round((doneCount / totalSeen) * 100) : 0;
+        const percent = totalVideos > 0
+          ? Math.round((doneCount / totalVideos) * 100)
+          : 0;
+
+        // Determine if this module's test is passed
+        const moduleStatus = progDoc?.moduleStatus || {};
+        const testPassed = moduleStatus[topicId] === "completed";
 
         return {
           sequenceNumber: step.sequenceNumber,
@@ -66,12 +76,15 @@ export const getLearningPathOverview = async (req, res) => {
           description: step.description || "",
           percent,
           videosDone: doneCount,
-          videosTracked: totalSeen,
+          videosTotal: totalVideos,
+          testPassed,
           next: p ? { topicId, currentIndex: p.currentIndex } : null,
         };
       });
 
-    const overall = aggTotal ? Math.round((aggDone / aggTotal) * 100) : 0;
+    const overall = aggTotal > 0
+      ? Math.round((aggDone / aggTotal) * 100)
+      : 0;
 
     res.json({
       success: true,

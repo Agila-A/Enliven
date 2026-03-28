@@ -1,125 +1,120 @@
 // src/components/LearningPath/LearningPath.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
-  CheckCircle2,
-  Circle,
-  Lock,
-  Target,
-  BookOpen,
-  Clock,
-  TrendingUp,
-  Award,
-  ChevronRight,
+  CheckCircle2, Circle, Lock, Target,
+  BookOpen, Clock, TrendingUp, Award, ChevronRight,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../ui/button";
 import { ProgressBar } from "../ProgressBar";
 
-const toSlug = (s = "") => s.toLowerCase().trim().replace(/\s+/g, "-");
-const toLevel = (s = "") => s.toLowerCase().replace(/[^a-z]/g, "");
-const pct = (done, total) => (total > 0 ? Math.round((done / total) * 100) : 0);
+// ── slug helpers ──────────────────────────────────────────────────
+const toSlug  = (s = "") => s.toLowerCase().trim().replace(/\s+/g, "-");
+// Strip non-alpha chars (trailing "." etc.) THEN lowercase — handles "Intermediate." → "intermediate"
+const toLevel = (s = "") => s.replace(/[^a-zA-Z\s]/g, "").toLowerCase().replace(/[^a-z]/g, "");
+const pct     = (done, total) => (total > 0 ? Math.round((done / total) * 100) : 0);
 
-// Convert your Map<number,bool>-like object into "done count"
-const countDone = (videoProgressObj) => {
-  if (!videoProgressObj || typeof videoProgressObj !== "object") return 0;
-  return Object.values(videoProgressObj).filter(Boolean).length;
+const countDone = (vp) => {
+  if (!vp || typeof vp !== "object") return 0;
+  return Object.values(vp).filter(Boolean).length;
 };
 
 export default function LearningPath() {
-  const [loading, setLoading] = useState(true);
-  const [roadmap, setRoadmap] = useState(null); // { domain, skillLevel, topics: [{sequenceNumber,title,description}] }
-  const [perTopic, setPerTopic] = useState({}); // topicId -> { videosDone, videosTotal, percent }
-  const [selected, setSelected] = useState(null);
+  const [loading, setLoading]         = useState(true);
+  const [roadmap, setRoadmap]         = useState(null);
+  const [perTopic, setPerTopic]       = useState({});
+  const [moduleStatus, setModuleStatus] = useState({});
+  const [selected, setSelected]       = useState(null);
 
   const navigate = useNavigate();
-  const token =
-    typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
-  // derive courseId from roadmap
-  const courseId = useMemo(() => {
-    if (!roadmap) return null;
-    return `${roadmap.domain}-${roadmap.skillLevel}`; // same as CoursePage
-  }, [roadmap]);
-
-  // ---- load roadmap + then progress ----
   useEffect(() => {
     let mounted = true;
 
     async function load() {
       setLoading(true);
       try {
-        // 1) roadmap
+        // ── 1. Roadmap ────────────────────────────────────────────
         const r = await fetch(
           `${import.meta.env.VITE_API_URL}/api/roadmap/my-roadmap`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
 
-        if (!r.ok) {
-          // graceful fallback if no roadmap yet
-          if (mounted) {
-            setRoadmap(null);
-            setPerTopic({});
-          }
-          return;
-        }
+        if (!r.ok) { if (mounted) { setRoadmap(null); setPerTopic({}); } return; }
 
         const rj = await r.json();
         if (!rj?.success || !rj?.roadmap) {
-          if (mounted) {
-            setRoadmap(null);
-            setPerTopic({});
-          }
-          return;
+          if (mounted) { setRoadmap(null); setPerTopic({}); } return;
         }
 
         const rm = rj.roadmap;
         if (mounted) setRoadmap(rm);
 
-        // 2) progress for this course (optional)
-        const cid = `${rm.domain}-${rm.skillLevel}`;
-        const p = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/progress/${cid}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        // FIX: strip trailing punctuation before building slugs
+        // "Intermediate." → "intermediate",  "Web Development" → "web-development"
+        const domainSlug = toSlug(rm.domain);
+        const levelSlug  = toLevel(rm.skillLevel);
+        const cid        = `${domainSlug}-${levelSlug}`;
 
-        let topicStats = {};
-        if (p.ok) {
-          const pj = await p.json();
-          const arr = Array.isArray(pj?.progress) ? pj.progress : [];
+        // ── 2. Fetch progress + real video counts in parallel ─────
+        const [pRes, vcRes] = await Promise.all([
+          fetch(`${import.meta.env.VITE_API_URL}/api/progress/${cid}`,
+            { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${import.meta.env.VITE_API_URL}/api/courses/${domainSlug}/${levelSlug}/video-counts`,
+            { headers: { Authorization: `Bearer ${token}` } }),
+        ]);
 
-          // Build quick lookup: topicId -> { videosDone, videosTotal, percent }
-          // We don’t know videosTotal from roadmap alone, so we infer it from videoProgress keys length.
-          for (const row of arr) {
-            const tId = String(row.topicId);
+        // Real video counts per topic from course JSON e.g. { "1": 2, "2": 3, ... }
+        // Covers ALL modules including ones the user hasn't visited yet
+        let realCounts = {};
+        if (vcRes.ok) {
+          const vcj = await vcRes.json();
+          realCounts = vcj.topics || {};
+        }
+
+        // ── 3. Seed ALL topics with real totals (0 done) ──────────
+        // KEY FIX: unvisited modules now contribute to the denominator
+        // so 2 done out of 11 total = 18%, not 2/2 = 100%
+        const topicStats = {};
+        for (const t of rm.topics || []) {
+          const tid = String(t.sequenceNumber);
+          topicStats[tid] = {
+            videosDone:  0,
+            videosTotal: realCounts[tid] || 0,
+            percent:     0,
+          };
+        }
+
+        // ── 4. Overlay actual progress for visited topics ─────────
+        let dbModuleStatus = {};
+        if (pRes.ok) {
+          const pj = await pRes.json();
+          dbModuleStatus = pj.moduleStatus || {};
+
+          for (const row of (pj.progress || [])) {
+            const tId        = String(row.topicId);
             const videosDone = countDone(row.videoProgress);
-            const videosTotal = Math.max(
-              videosDone,
-              Object.keys(row.videoProgress || {}).length
-            );
-            topicStats[tId] = {
-              videosDone,
-              videosTotal,
-              percent: pct(videosDone, videosTotal),
-            };
+            const videosTotal =
+              realCounts[tId] > 0 ? realCounts[tId] :
+              row.videoCount  > 0 ? row.videoCount  :
+              Math.max(videosDone, Object.keys(row.videoProgress || {}).length);
+
+            topicStats[tId] = { videosDone, videosTotal, percent: pct(videosDone, videosTotal) };
           }
         }
 
-        if (mounted) setPerTopic(topicStats);
+        if (mounted) { setPerTopic(topicStats); setModuleStatus(dbModuleStatus); }
       } catch (e) {
         console.error("LearningPath load error:", e);
-        if (mounted) {
-          setRoadmap(null);
-          setPerTopic({});
-        }
+        if (mounted) { setRoadmap(null); setPerTopic({}); }
       } finally {
         if (mounted) setLoading(false);
       }
     }
 
     load();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [token]);
 
   if (loading) return <p className="p-8">Loading your learning path…</p>;
@@ -136,14 +131,13 @@ export default function LearningPath() {
   }
 
   const domainSlug = toSlug(roadmap.domain);
-  const levelSlug = toLevel(roadmap.skillLevel);
+  const levelSlug  = toLevel(roadmap.skillLevel);
 
-  // compute overall stats
+  // Overall stats — uses ALL topics including unvisited ones
   const totals = roadmap.topics.reduce(
     (acc, t) => {
-      const tid = String(t.sequenceNumber);
-      const s = perTopic[tid] || { videosDone: 0, videosTotal: 0, percent: 0 };
-      acc.done += s.videosDone;
+      const s = perTopic[String(t.sequenceNumber)] || { videosDone: 0, videosTotal: 0 };
+      acc.done  += s.videosDone;
       acc.total += s.videosTotal;
       return acc;
     },
@@ -151,31 +145,24 @@ export default function LearningPath() {
   );
   const overallPercent = pct(totals.done, totals.total);
 
-  // UI helpers
+  // Lock logic: module N unlocks only when module N-1's test is passed in DB
   const statusFor = (index) => {
-    // Very simple lock logic: first is open; each next unlocked if previous has 100%
     if (index === 0) return "unlocked";
-    const prev = roadmap.topics[index - 1];
-    const prevStat = perTopic[String(prev.sequenceNumber)];
-    const prevDone = prevStat?.percent === 100;
-    return prevDone ? "unlocked" : "locked";
+    const prevId = String(roadmap.topics[index - 1].sequenceNumber);
+    return moduleStatus[prevId] === "completed" ? "unlocked" : "locked";
   };
 
-  const statusIcon = (status) => {
-    if (status === "locked") return <Lock className="w-6 h-6 text-muted-foreground" />;
-    if (status === "unlocked") return <Circle className="w-6 h-6 text-gray-500" />;
-    return <CheckCircle2 className="w-6 h-6 text-success" />;
+  const statusIcon = (s) => {
+    if (s === "locked")    return <Lock className="w-6 h-6 text-muted-foreground" />;
+    if (s === "completed") return <CheckCircle2 className="w-6 h-6 text-green-500" />;
+    return <Circle className="w-6 h-6 text-gray-500" />;
   };
 
-  const goToModule = (topicSeq) => {
-    navigate(`/courses/${domainSlug}/${levelSlug}`, {
-      state: { moduleId: String(topicSeq) },
-    });
-  };
+  const goToModule = (seq) =>
+    navigate(`/courses/${domainSlug}/${levelSlug}`, { state: { moduleId: String(seq) } });
 
   return (
     <div className="p-8">
-      {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2">Your Learning Path</h1>
         <p className="text-muted-foreground">
@@ -183,13 +170,11 @@ export default function LearningPath() {
         </p>
       </div>
 
-      {/* Overall Progress */}
+      {/* ── Overall Progress Banner ── */}
       <div className="bg-gradient-to-r from-primary to-[#582B5B] rounded-xl p-6 text-white mb-8">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-2xl font-bold mb-1">
-              {roadmap.domain} — {roadmap.skillLevel}
-            </h2>
+            <h2 className="text-2xl font-bold mb-1">{roadmap.domain} — {roadmap.skillLevel}</h2>
             <p className="text-white/80">Personalized learning track</p>
           </div>
           <div className="bg-white/20 rounded-lg p-4 text-center">
@@ -203,24 +188,20 @@ export default function LearningPath() {
         <div className="grid grid-cols-3 gap-4 mt-6">
           <div className="bg-white/10 rounded-lg p-3">
             <div className="flex items-center space-x-2 mb-1">
-              <CheckCircle2 className="w-4 h-4" />
-              <span className="text-sm">Videos Done</span>
+              <CheckCircle2 className="w-4 h-4" /><span className="text-sm">Videos Done</span>
             </div>
-            <p className="text-2xl font-bold">
-              {totals.done} / {Math.max(totals.total, totals.done)}
-            </p>
+            {/* FIX: show real total, not Math.max(total,done) */}
+            <p className="text-2xl font-bold">{totals.done} / {totals.total}</p>
           </div>
           <div className="bg-white/10 rounded-lg p-3">
             <div className="flex items-center space-x-2 mb-1">
-              <Clock className="w-4 h-4" />
-              <span className="text-sm">Modules</span>
+              <Clock className="w-4 h-4" /><span className="text-sm">Modules</span>
             </div>
             <p className="text-2xl font-bold">{roadmap.topics.length}</p>
           </div>
           <div className="bg-white/10 rounded-lg p-3">
             <div className="flex items-center space-x-2 mb-1">
-              <Award className="w-4 h-4" />
-              <span className="text-sm">Track</span>
+              <Award className="w-4 h-4" /><span className="text-sm">Track</span>
             </div>
             <p className="text-2xl font-bold">Active</p>
           </div>
@@ -228,76 +209,62 @@ export default function LearningPath() {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">
-        {/* Modules list */}
+        {/* ── Module Cards ── */}
         <div className="lg:col-span-2 space-y-6">
           {roadmap.topics
             .slice()
             .sort((a, b) => (a.sequenceNumber || 0) - (b.sequenceNumber || 0))
             .map((t, idx) => {
-              const tid = String(t.sequenceNumber);
-              const stat = perTopic[tid] || { videosDone: 0, videosTotal: 0, percent: 0 };
-              const status =
-                stat.percent === 100 ? "completed" : statusFor(idx);
-              const locked = status === "locked";
-              const current = status !== "locked" && stat.percent > 0 && stat.percent < 100;
+              const tid         = String(t.sequenceNumber);
+              const stat        = perTopic[tid] || { videosDone: 0, videosTotal: 0, percent: 0 };
+              const isCompleted = moduleStatus[tid] === "completed";
+              const statusVal   = isCompleted ? "completed" : statusFor(idx);
+              const locked      = statusVal === "locked";
+              const current     = !locked && !isCompleted && stat.percent > 0 && stat.percent < 100;
 
               return (
                 <div key={tid} className="relative">
                   {idx < roadmap.topics.length - 1 && (
                     <div className="absolute left-12 top-20 w-0.5 h-12 bg-border" />
                   )}
-
                   <div
-                    className={`bg-card rounded-xl border-2 p-6 transition-all ${
-                      current
-                        ? "border-primary shadow-lg"
-                        : locked
-                        ? "border-border opacity-60"
-                        : "border-border hover:shadow-md"
+                    className={`bg-card rounded-xl border-2 p-6 transition-all cursor-pointer ${
+                      current     ? "border-primary shadow-lg" :
+                      locked      ? "border-border opacity-60" :
+                      isCompleted ? "border-green-300"         :
+                                    "border-border hover:shadow-md"
                     }`}
+                    onClick={() => !locked && setSelected(t)}
                   >
                     <div className="flex items-start space-x-4">
-                      {/* icon */}
-                      <div
-                        className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center ${
-                          locked ? "bg-secondary" : "bg-primary/10"
-                        }`}
-                      >
-                        {statusIcon(status)}
+                      <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center ${
+                        locked ? "bg-secondary" : "bg-primary/10"
+                      }`}>
+                        {statusIcon(statusVal)}
                       </div>
 
-                      {/* content */}
                       <div className="flex-1">
-                        <div className="flex items-start justify-between mb-2">
-                          <div>
-                            <div className="flex items-center space-x-2 mb-1">
-                              {!locked && current && (
-                                <span className="text-xs font-semibold text-primary bg-primary/10 px-2 py-1 rounded">
-                                  In Progress
-                                </span>
-                              )}
-                              {status === "completed" && (
-                                <span className="text-xs font-semibold text-green-600 bg-green-100 px-2 py-1 rounded">
-                                  Completed
-                                </span>
-                              )}
-                            </div>
-                            <h3 className="text-xl font-semibold mb-1">
-                              {t.title}
-                            </h3>
-                            {t.description && (
-                              <p className="text-muted-foreground text-sm">
-                                {t.description}
-                              </p>
-                            )}
-                          </div>
+                        <div className="flex items-center space-x-2 mb-1">
+                          {current && (
+                            <span className="text-xs font-semibold text-primary bg-primary/10 px-2 py-1 rounded">
+                              In Progress
+                            </span>
+                          )}
+                          {isCompleted && (
+                            <span className="text-xs font-semibold text-green-600 bg-green-100 px-2 py-1 rounded">
+                              Completed
+                            </span>
+                          )}
                         </div>
 
-                        {/* stats */}
+                        <h3 className="text-xl font-semibold mb-1">{t.title}</h3>
+                        {t.description && (
+                          <p className="text-muted-foreground text-sm">{t.description}</p>
+                        )}
+
                         <div className="flex items-center space-x-4 text-sm text-muted-foreground mt-3 mb-4">
                           <span className="flex items-center">
-                            <BookOpen className="w-4 h-4 mr-1" />
-                            {stat.videosTotal || 0} videos
+                            <BookOpen className="w-4 h-4 mr-1" />{stat.videosTotal || 0} videos
                           </span>
                           <span className="flex items-center">
                             <Clock className="w-4 h-4 mr-1" />
@@ -305,7 +272,6 @@ export default function LearningPath() {
                           </span>
                         </div>
 
-                        {/* progress */}
                         {!locked && (
                           <div className="space-y-2">
                             <div className="flex items-center justify-between text-sm">
@@ -316,20 +282,18 @@ export default function LearningPath() {
                           </div>
                         )}
 
-                        {/* actions */}
                         <div className="mt-4">
                           {locked ? (
                             <div className="flex items-center text-sm text-muted-foreground">
-                              <Lock className="w-4 h-4 mr-2" />
-                              Complete previous modules to unlock
+                              <Lock className="w-4 h-4 mr-2" />Complete previous module test to unlock
                             </div>
                           ) : (
                             <Button
                               variant={current ? "default" : "outline"}
                               className={current ? "bg-primary hover:bg-primary/90" : ""}
-                              onClick={() => goToModule(t.sequenceNumber)}
+                              onClick={(e) => { e.stopPropagation(); goToModule(t.sequenceNumber); }}
                             >
-                              {status === "completed" ? "Review Module" : "Continue Learning"}
+                              {isCompleted ? "Review Module" : "Continue Learning"}
                               <ChevronRight className="w-4 h-4 ml-1" />
                             </Button>
                           )}
@@ -342,7 +306,7 @@ export default function LearningPath() {
             })}
         </div>
 
-        {/* Sidebar: details */}
+        {/* ── Detail Sidebar ── */}
         <div className="lg:col-span-1">
           <div className="bg-card rounded-xl border p-6 sticky top-24">
             {selected ? (
@@ -351,7 +315,6 @@ export default function LearningPath() {
                 {selected.description && (
                   <p className="text-sm text-muted-foreground">{selected.description}</p>
                 )}
-
                 <div className="mt-4">
                   <div className="flex items-center space-x-2 mb-3">
                     <Target className="w-5 h-5 text-primary" />
@@ -366,7 +329,6 @@ export default function LearningPath() {
                     ))}
                   </ul>
                 </div>
-
                 <div className="mt-4">
                   <div className="flex items-center space-x-2 mb-3">
                     <TrendingUp className="w-5 h-5 text-[#582B5B]" />
@@ -381,11 +343,7 @@ export default function LearningPath() {
                     ))}
                   </ul>
                 </div>
-
-                <Button
-                  className="w-full mt-6"
-                  onClick={() => goToModule(selected.sequenceNumber)}
-                >
+                <Button className="w-full mt-6" onClick={() => goToModule(selected.sequenceNumber)}>
                   Open Module
                 </Button>
               </>
@@ -394,9 +352,7 @@ export default function LearningPath() {
                 <div className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center mx-auto mb-4">
                   <Target className="w-8 h-8 text-muted-foreground" />
                 </div>
-                <p className="text-muted-foreground">
-                  Select a module card to view details.
-                </p>
+                <p className="text-muted-foreground">Select a module card to view details.</p>
               </div>
             )}
           </div>

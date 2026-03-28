@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -7,64 +7,97 @@ import {
   BarChart3,
   User,
   LogOut,
-  MessageCircle
+  MessageCircle,
+  Loader2,
 } from "lucide-react";
 
 const menuItems = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { id: "dashboard",     label: "Dashboard",    icon: LayoutDashboard },
   { id: "learning-path", label: "Learning Path", icon: RouteIcon },
-  { id: "courses", label: "Courses", icon: BookOpen },
-  { id: "analytics", label: "Analytics", icon: BarChart3 },
-  { id: "studybuddy", label: "StudyBuddy", icon: MessageCircle },
-  { id: "profile", label: "Profile", icon: User },
+  { id: "courses",       label: "Courses",       icon: BookOpen },
+  { id: "analytics",     label: "Analytics",     icon: BarChart3 },
+  { id: "studybuddy",    label: "StudyBuddy",    icon: MessageCircle },
+  { id: "profile",       label: "Profile",       icon: User },
 ];
 
 export default function Sidebar() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const [coursesLoading, setCoursesLoading] = useState(false);
 
   const logout = async () => {
     try {
-      // Optional backend logout (safe even if endpoint doesn't exist)
       const token = localStorage.getItem("token");
       if (token) {
         await fetch(`${import.meta.env.VITE_API_URL}/api/auth/logout`, {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         }).catch(() => {});
       }
     } finally {
-      // 🔥 CLEAR ALL CLIENT STATE
       localStorage.removeItem("token");
       localStorage.removeItem("roadmap");
       localStorage.removeItem("user");
-
       navigate("/login", { replace: true });
     }
   };
 
-  const go = (id) => {
-    // StudyBuddy
-    if (id === "studybuddy") {
-      navigate("/study-buddy");
-      return;
-    }
-
-    // Courses → EXACT same logic as before (working)
-    if (id === "courses") {
-      const roadmap = JSON.parse(localStorage.getItem("roadmap"));
-      if (roadmap) {
-        const domain = roadmap.domain.toLowerCase().replace(/\s+/g, "-");
-        const level = roadmap.skillLevel.toLowerCase();
-        navigate(`/courses/${domain}/${level}`);
-      } else {
-        navigate("/assessment");
+  const goToCourses = async () => {
+    // Fast path: roadmap already cached in localStorage from this session
+    const cached = localStorage.getItem("roadmap");
+    if (cached) {
+      try {
+        const roadmap = JSON.parse(cached);
+        if (roadmap?.domain && roadmap?.skillLevel) {
+          const domain = roadmap.domain.toLowerCase().replace(/\s+/g, "-");
+          const level  = roadmap.skillLevel.toLowerCase().replace(/[^a-z]/g, "");
+          navigate(`/courses/${domain}/${level}`);
+          return;
+        }
+      } catch {
+        // corrupted cache — fall through to API fetch
       }
-      return;
     }
 
+    // BUG FIX: localStorage is empty after a fresh login (roadmap is only written
+    // during the initial assessment, not on login). Always fall back to the API
+    // so returning users aren't sent to /assessment by mistake.
+    setCoursesLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/roadmap/my-roadmap`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        const roadmap = data?.roadmap;
+
+        if (roadmap?.domain && roadmap?.skillLevel) {
+          // Repopulate localStorage so subsequent clicks are instant
+          localStorage.setItem("roadmap", JSON.stringify(roadmap));
+
+          const domain = roadmap.domain.toLowerCase().replace(/\s+/g, "-");
+          const level  = roadmap.skillLevel.toLowerCase().replace(/[^a-z]/g, "");
+          navigate(`/courses/${domain}/${level}`);
+          return;
+        }
+      }
+
+      // No roadmap in DB either — user genuinely hasn't done assessment yet
+      navigate("/assessment");
+    } catch (err) {
+      console.error("Sidebar courses nav error:", err);
+      navigate("/assessment");
+    } finally {
+      setCoursesLoading(false);
+    }
+  };
+
+  const go = (id) => {
+    if (id === "studybuddy") { navigate("/study-buddy"); return; }
+    if (id === "courses")    { goToCourses(); return; }
     navigate(`/${id}`);
   };
 
@@ -91,17 +124,18 @@ export default function Sidebar() {
           <button
             key={id}
             onClick={() => go(id)}
+            disabled={id === "courses" && coursesLoading}
             className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all ${
               isActive(id)
                 ? "bg-primary text-white shadow-md"
                 : "text-foreground hover:bg-secondary"
-            }`}
+            } ${id === "courses" && coursesLoading ? "opacity-60 cursor-wait" : ""}`}
           >
-            <Icon
-              className={`w-5 h-5 ${
-                isActive(id) ? "text-white" : "text-muted-foreground"
-              }`}
-            />
+            {id === "courses" && coursesLoading ? (
+              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+            ) : (
+              <Icon className={`w-5 h-5 ${isActive(id) ? "text-white" : "text-muted-foreground"}`} />
+            )}
             <span className="font-medium">{label}</span>
           </button>
         ))}

@@ -1,90 +1,84 @@
+// controllers/proctorController.js
 import Groq from "groq-sdk";
+import ProctorAttempt from "../models/ProctorAttempt.js";
 
-/* CREATE CLIENT SAFELY */
+/* ─── GROQ CLIENT ─────────────────────────────────────────────── */
 function createGroqClient() {
-  if (!process.env.GROQ_API_KEY) {
-    throw new Error("GROQ_API_KEY missing");
-  }
+  if (!process.env.GROQ_API_KEY) throw new Error("GROQ_API_KEY missing");
   return new Groq({ apiKey: process.env.GROQ_API_KEY });
 }
 
-/* SAFEST JSON EXTRACTION EVER */
-function safelyParseGroqJSON(raw) {
+/* ─── JSON PARSER ─────────────────────────────────────────────────
+   BUG FIX: The old regex /\{[\s\S]*?\}/g was non-greedy — it matched
+   the SMALLEST possible object, so nested objects like {"options":["a","b"]}
+   got torn apart into broken fragments.
+
+   Fix: strip markdown fences, then find the outermost JSON array using
+   bracket-depth counting. This correctly handles nested objects/arrays.
+────────────────────────────────────────────────────────────────── */
+function extractJSON(raw) {
   if (!raw) throw new Error("Empty Groq response");
 
-  raw = raw.replace(/```json|```/g, "").trim();
+  // Strip markdown code fences
+  raw = raw.replace(/```json|```/gi, "").trim();
 
-  // Extract all JSON objects inside the array using streaming regex
-  const objectMatches = raw.match(/\{[\s\S]*?\}/g);
-  if (!objectMatches) throw new Error("No valid JSON objects found");
+  // Find the outermost [ ... ] using depth counting
+  let start = raw.indexOf("[");
+  if (start === -1) throw new Error("No JSON array found in response");
 
-  const parsedObjects = [];
+  let depth = 0;
+  let end = -1;
 
-  for (const obj of objectMatches) {
-    try {
-      // Try parsing each object independently
-      let clean = obj
-        .replace(/,\s*}/g, "}") // remove trailing commas
-        .replace(/,\s*]/g, "]")
-        .replace(/[\u0000-\u001F]+/g, ""); // remove control chars
-
-      parsedObjects.push(JSON.parse(clean));
-    } catch (e) {
-      // Skip only the broken object but keep the rest
-      console.warn("Skipping broken object:", obj);
+  for (let i = start; i < raw.length; i++) {
+    if (raw[i] === "[") depth++;
+    else if (raw[i] === "]") {
+      depth--;
+      if (depth === 0) { end = i; break; }
     }
   }
 
-  if (parsedObjects.length === 0) {
-    throw new Error("All objects were invalid JSON");
-  }
+  if (end === -1) throw new Error("Unterminated JSON array in response");
 
-  return parsedObjects;
+  const jsonStr = raw
+    .slice(start, end + 1)
+    .replace(/,\s*([}\]])/g, "$1")   // remove trailing commas
+    .replace(/[\u0000-\u001F]+/g, " "); // sanitize control chars
+
+  return JSON.parse(jsonStr);
 }
 
-
-/* GENERATE QUESTIONS FROM GROQ SAFELY */
+/* ─── QUESTION GENERATOR ──────────────────────────────────────── */
 async function generateQuestionsWithGroq({ topic, count }) {
   const groq = createGroqClient();
 
   const prompt = `
 You are an exam generator.
+Generate EXACTLY ${count} MCQ questions about: "${topic}"
 
-Generate EXACTLY ${count} MCQ questions about:
-"${topic}"
+Each question MUST have these exact fields:
+- "question": string
+- "options": array of exactly 4 strings
+- "correctIndex": number (0–3)
+- "explanation": string
+- "difficulty": number (1–5)
 
-Each item MUST have:
-- question
-- options (4)
-- correctIndex
-- explanation
-- difficulty (1–5)
-
-Output ONLY a JSON array. No comments. No markdown.
+Output ONLY a valid JSON array. No markdown, no comments, no extra text.
 `.trim();
 
   const completion = await groq.chat.completions.create({
     model: "llama-3.1-8b-instant",
     temperature: 0.5,
-    max_tokens: 2500,
+    max_tokens: 3000,
     messages: [
-      { role: "system", content: "Respond ONLY with valid JSON." },
-      { role: "user", content: prompt }
+      { role: "system", content: "You output only valid JSON arrays. No markdown, no explanation." },
+      { role: "user", content: prompt },
     ],
   });
 
-  let content = completion.choices?.[0]?.message?.content;
+  const content = completion.choices?.[0]?.message?.content;
   if (!content) throw new Error("Groq returned empty content");
 
-  let parsed;
-  try {
-    parsed = safelyParseGroqJSON(content);
-
-  } catch (e) {
-    console.error("Groq JSON parse error:", e);
-    console.log("RAW OUTPUT:", content);
-    throw new Error("Failed to parse questions from Groq");
-  }
+  const parsed = extractJSON(content);
 
   return parsed.slice(0, count).map((q, i) => ({
     id: q.id || `q${i + 1}`,
@@ -96,11 +90,15 @@ Output ONLY a JSON array. No comments. No markdown.
   }));
 }
 
-/* MODULE QUESTIONS */
+/* ─── GET MODULE QUESTIONS ────────────────────────────────────── */
 export async function getModuleQuestions(req, res) {
   try {
     const { moduleId } = req.params;
     const { domain, level } = req.query;
+
+    if (!domain || !level) {
+      return res.status(400).json({ success: false, message: "domain and level are required" });
+    }
 
     const topic = `Module ${moduleId} of ${domain} - ${level}`;
     const questions = await generateQuestionsWithGroq({ topic, count: 10 });
@@ -108,16 +106,18 @@ export async function getModuleQuestions(req, res) {
     return res.json({ success: true, questions, moduleId, mode: "module" });
   } catch (err) {
     console.error("getModuleQuestions error:", err);
-    return res
-      .status(500)
-      .json({ success: false, message: "Failed to generate module questions" });
+    return res.status(500).json({ success: false, message: "Failed to generate module questions" });
   }
 }
 
-/* FINAL QUESTIONS */
+/* ─── GET FINAL QUESTIONS ─────────────────────────────────────── */
 export async function getFinalQuestions(req, res) {
   try {
     const { domain, level } = req.query;
+
+    if (!domain || !level) {
+      return res.status(400).json({ success: false, message: "domain and level are required" });
+    }
 
     const topic = `Final exam for ${domain} (${level})`;
     const questions = await generateQuestionsWithGroq({ topic, count: 30 });
@@ -125,8 +125,72 @@ export async function getFinalQuestions(req, res) {
     return res.json({ success: true, questions, mode: "final" });
   } catch (err) {
     console.error("getFinalQuestions error:", err);
-    return res
-      .status(500)
-      .json({ success: false, message: "Failed to generate final exam questions" });
+    return res.status(500).json({ success: false, message: "Failed to generate final exam questions" });
+  }
+}
+
+/* ─── SAVE ATTEMPT (was completely missing) ───────────────────────
+   POST /api/proctor/attempt
+   Called by frontend after the exam ends with answers + violations.
+────────────────────────────────────────────────────────────────── */
+export async function saveAttempt(req, res) {
+  try {
+    const userId = req.userId;
+    const {
+      courseId,
+      moduleId,
+      questions,
+      userAnswers,
+      score,
+      violations = {},
+      flagged = false,
+      reason = "",
+      startedAt,
+      endedAt,
+    } = req.body;
+
+    if (!courseId || !moduleId) {
+      return res.status(400).json({ success: false, message: "courseId and moduleId are required" });
+    }
+
+    const attempt = await ProctorAttempt.create({
+      userId,
+      courseId,
+      moduleId,
+      questions,
+      userAnswers,
+      score,
+      violations,
+      flagged,
+      reason,
+      startedAt: startedAt ? new Date(startedAt) : new Date(),
+      endedAt: endedAt ? new Date(endedAt) : new Date(),
+    });
+
+    return res.status(201).json({ success: true, attemptId: attempt._id, score });
+  } catch (err) {
+    console.error("saveAttempt error:", err);
+    return res.status(500).json({ success: false, message: "Failed to save attempt" });
+  }
+}
+
+/* ─── GET ATTEMPTS FOR USER ───────────────────────────────────── */
+export async function getUserAttempts(req, res) {
+  try {
+    const userId = req.userId;
+    const { courseId } = req.query;
+
+    const filter = { userId };
+    if (courseId) filter.courseId = courseId;
+
+    const attempts = await ProctorAttempt.find(filter)
+      .select("-questions") // don't send full question list back
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.json({ success: true, attempts });
+  } catch (err) {
+    console.error("getUserAttempts error:", err);
+    return res.status(500).json({ success: false, message: "Failed to fetch attempts" });
   }
 }
