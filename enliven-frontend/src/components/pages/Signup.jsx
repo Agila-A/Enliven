@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import loginImg from "../../utils/assets/signup.png"; // reuse same image
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -17,7 +18,6 @@ export default function Signup() {
     setError("");
 
     try {
-      // BUG FIX: was hardcoded "http://localhost:5000" — use env variable
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -28,14 +28,10 @@ export default function Signup() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
 
-      // Store auth info immediately after registration
       localStorage.setItem("loggedIn", "true");
       localStorage.setItem("token", data.token);
 
-      // BUG FIX: removed alert() — it blocks rendering and feels broken.
-      // Navigate directly to domain selection (new user never has a domain yet).
       navigate("/select-domain");
-
     } catch (err) {
       setError(err.message);
     } finally {
@@ -44,63 +40,147 @@ export default function Signup() {
   };
 
   return (
-    <div className="min-h-screen flex justify-center items-center bg-gradient-to-br from-sky-100 to-emerald-100 p-4">
-      <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-200">
-        <h1 className="text-3xl font-bold text-sky-700 text-center mb-6">
-          Create Account
-        </h1>
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        fontFamily: "Inter, sans-serif",
+      }}
+    >
+      {/* LEFT PANEL */}
+      <div
+        style={{
+          flex: 1,
+          background: "#0f172a",
+          color: "#fff",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "40px",
+        }}
+      >
+        <div style={{ width: "100%", maxWidth: "320px" }}>
+          <h2 style={{ fontSize: "26px", marginBottom: "8px" }}>
+            Create Account
+          </h2>
 
-        {error && <p className="text-red-600 text-center mb-3">{error}</p>}
+          <p style={{ fontSize: "13px", color: "#94a3b8", marginBottom: "30px" }}>
+            Start your learning journey
+          </p>
 
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          <input
-            name="name"
-            placeholder="Full Name"
-            value={form.name}
-            onChange={handleChange}
-            required
-            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:border-sky-500 focus:outline-none"
+          {error && (
+            <p style={{ color: "#f87171", marginBottom: "10px" }}>{error}</p>
+          )}
+
+          <form onSubmit={handleSubmit}>
+            <input
+              name="name"
+              placeholder="Full Name"
+              value={form.name}
+              onChange={handleChange}
+              required
+              style={inputStyle}
+            />
+
+            <input
+              type="email"
+              name="email"
+              placeholder="Email"
+              value={form.email}
+              onChange={handleChange}
+              required
+              style={inputStyle}
+            />
+
+            <input
+              type="password"
+              name="password"
+              placeholder="Password"
+              value={form.password}
+              onChange={handleChange}
+              required
+              style={inputStyle}
+            />
+
+            <button
+              type="submit"
+              disabled={loading}
+              style={buttonStyle}
+            >
+              {loading ? "Creating..." : "Sign Up"}
+            </button>
+          </form>
+
+          <p style={{ marginTop: "20px", fontSize: "13px", color: "#94a3b8" }}>
+            Already have an account?{" "}
+            <span
+              style={{ color: "#a78bfa", cursor: "pointer" }}
+              onClick={() => navigate("/login")}
+            >
+              Log in
+            </span>
+          </p>
+        </div>
+      </div>
+
+      {/* RIGHT PANEL */}
+      <div
+        style={{
+          flex: 1,
+          background: "#8b5cf6",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "40px",
+        }}
+      >
+        <div style={{ textAlign: "center", color: "#fff" }}>
+          <h1 style={{ fontSize: "36px", fontWeight: "600" }}>
+            Join
+          </h1>
+          <h1 style={{ fontSize: "36px", fontWeight: "700" }}>
+            Enliven
+          </h1>
+
+          <p style={{ marginTop: "10px", opacity: 0.9 }}>
+            Create your account and start learning
+          </p>
+
+          <img
+            src={loginImg}
+            alt="illustration"
+            style={{
+              width: "80%",
+              maxWidth: "400px",
+              marginTop: "30px",
+            }}
           />
-
-          <input
-            type="email"
-            name="email"
-            placeholder="Email"
-            value={form.email}
-            onChange={handleChange}
-            required
-            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:border-sky-500 focus:outline-none"
-          />
-
-          <input
-            type="password"
-            name="password"
-            placeholder="Password"
-            value={form.password}
-            onChange={handleChange}
-            required
-            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:border-sky-500 focus:outline-none"
-          />
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2 bg-sky-500 hover:bg-sky-600 text-white font-semibold rounded-lg transition"
-          >
-            {loading ? "Creating..." : "Sign Up"}
-          </button>
-        </form>
-
-        <p className="text-center mt-4 text-slate-600">
-          Already have an account?{" "}
-          <span
-            className="text-sky-600 ml-1 cursor-pointer font-semibold"
-            onClick={() => navigate("/login")}
-          >
-            Log in
-          </span>
-        </p>
+        </div>
       </div>
     </div>
   );
 }
+
+/* 🔥 Shared styles */
+const inputStyle = {
+  width: "100%",
+  padding: "12px",
+  marginBottom: "14px",
+  borderRadius: "8px",
+  border: "1px solid #334155",
+  background: "transparent",
+  color: "#fff",
+  outline: "none",
+};
+
+const buttonStyle = {
+  width: "100%",
+  padding: "12px",
+  borderRadius: "8px",
+  border: "none",
+  background: "#8b5cf6",
+  color: "#fff",
+  cursor: "pointer",
+  marginTop: "10px",
+  fontWeight: "500",
+};

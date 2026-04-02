@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import loginImg from "../../utils/assets/login.png"; // 👈 your image
 
 export default function Login() {
   const navigate = useNavigate();
@@ -17,7 +18,6 @@ export default function Login() {
     setError("");
 
     try {
-      // BUG FIX: was hardcoded "http://localhost:5000" — use env variable
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -31,15 +31,11 @@ export default function Login() {
       localStorage.setItem("loggedIn", "true");
       localStorage.setItem("token", data.token);
 
-      // BUG FIX: after login, check if user has a domain set.
-      // If not (e.g. they just registered and came back), send them to domain selection.
-      // If yes, go straight to dashboard.
       if (!data.user?.domain) {
         navigate("/select-domain");
       } else {
         navigate("/dashboard");
       }
-
     } catch (err) {
       setError(err.message);
     } finally {
@@ -48,54 +44,135 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex justify-center items-center bg-gradient-to-br from-emerald-100 to-sky-100 p-4">
-      <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border">
-        <h1 className="text-3xl font-bold text-emerald-700 text-center mb-6">
-          Welcome Back
-        </h1>
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        fontFamily: "Inter, sans-serif",
+      }}
+    >
+      {/* LEFT PANEL */}
+      <div
+        style={{
+          flex: 1,
+          background: "#0f172a",
+          color: "#fff",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "40px",
+        }}
+      >
+        <div style={{ width: "100%", maxWidth: "320px" }}>
+          <h2 style={{ fontSize: "26px", marginBottom: "8px" }}>Login</h2>
+          <p style={{ fontSize: "13px", color: "#94a3b8", marginBottom: "30px" }}>
+            Enter your account details
+          </p>
 
-        {error && <p className="text-red-600 text-center mb-3">{error}</p>}
+          {error && (
+            <p style={{ color: "#f87171", marginBottom: "10px" }}>{error}</p>
+          )}
 
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          <input
-            type="email"
-            name="email"
-            placeholder="Email"
-            value={form.email}
-            onChange={handleChange}
-            required
-            className="w-full px-4 py-2 rounded-lg border"
+          <form onSubmit={handleSubmit}>
+            <input
+              type="email"
+              name="email"
+              placeholder="Email"
+              value={form.email}
+              onChange={handleChange}
+              required
+              style={inputStyle}
+            />
+
+            <input
+              type="password"
+              name="password"
+              placeholder="Password"
+              value={form.password}
+              onChange={handleChange}
+              required
+              style={inputStyle}
+            />
+
+            <button
+              type="submit"
+              disabled={loading}
+              style={buttonStyle}
+            >
+              {loading ? "Logging in..." : "Login"}
+            </button>
+          </form>
+
+          <p style={{ marginTop: "20px", fontSize: "13px", color: "#94a3b8" }}>
+            Don’t have an account?{" "}
+            <span
+              style={{ color: "#a78bfa", cursor: "pointer" }}
+              onClick={() => navigate("/signup")}
+            >
+              Sign up
+            </span>
+          </p>
+        </div>
+      </div>
+
+      {/* RIGHT PANEL */}
+      <div
+        style={{
+          flex: 1,
+          background: "#8b5cf6",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "40px",
+          position: "relative",
+        }}
+      >
+        <div style={{ textAlign: "center", color: "#fff" }}>
+          <h1 style={{ fontSize: "36px", fontWeight: "600" }}>
+            Welcome to
+          </h1>
+          <h1 style={{ fontSize: "36px", fontWeight: "700" }}>
+            Enliven
+          </h1>
+          <p style={{ marginTop: "10px", opacity: 0.9 }}>
+            Login to access your account
+          </p>
+
+          <img
+            src={loginImg}
+            alt="illustration"
+            style={{
+              width: "80%",
+              maxWidth: "400px",
+              marginTop: "30px",
+            }}
           />
-
-          <input
-            type="password"
-            name="password"
-            placeholder="Password"
-            value={form.password}
-            onChange={handleChange}
-            required
-            className="w-full px-4 py-2 rounded-lg border"
-          />
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-lg transition"
-          >
-            {loading ? "Logging in..." : "Log In"}
-          </button>
-        </form>
-
-        <p className="text-center mt-4 text-slate-600">
-          New here?{" "}
-          <span
-            className="text-emerald-600 ml-1 cursor-pointer font-semibold"
-            onClick={() => navigate("/signup")}
-          >
-            Create an account
-          </span>
-        </p>
+        </div>
       </div>
     </div>
   );
 }
+
+/* 🔥 Styles */
+const inputStyle = {
+  width: "100%",
+  padding: "12px",
+  marginBottom: "14px",
+  borderRadius: "8px",
+  border: "1px solid #334155",
+  background: "transparent",
+  color: "#fff",
+  outline: "none",
+};
+
+const buttonStyle = {
+  width: "100%",
+  padding: "12px",
+  borderRadius: "8px",
+  border: "none",
+  background: "#8b5cf6",
+  color: "#fff",
+  cursor: "pointer",
+  marginTop: "10px",
+  fontWeight: "500",
+};
