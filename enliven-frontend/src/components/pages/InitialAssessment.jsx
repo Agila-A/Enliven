@@ -141,58 +141,173 @@ export default function InitialAssessment() {
   }
 
   if (result) {
-    return (
-      <div className="max-w-4xl mx-auto p-6">
-        <h1 className="text-3xl font-bold text-emerald-700 mb-4">
-          🎉 Your Skill Level:
-        </h1>
+return (
+  <div
+    style={{
+      minHeight: "100vh",
+      background: "#f8fafc",
+      padding: "40px 20px",
+      fontFamily: "Inter, sans-serif",
+    }}
+  >
+    <div style={{ maxWidth: "900px", margin: "0 auto" }}>
+      
+      {/* Skill Level */}
+      <h1 style={{ fontSize: "28px", fontWeight: "600", marginBottom: "10px" }}>
+        Your Skill Level
+      </h1>
 
-        <p className="text-xl bg-emerald-100 border border-emerald-300 p-4 rounded-lg mb-8">
-          You are <b>{result}</b> in this domain!
-        </p>
+      <div
+        style={{
+          padding: "18px",
+          borderRadius: "14px",
+          background: "#111827",
+          color: "#fff",
+          marginBottom: "40px",
+          textAlign: "center",
+          fontSize: "16px",
+        }}
+      >
+        You are <b>{result}</b> in this domain
+      </div>
 
-        <h2 className="text-2xl font-bold text-blue-700 mb-6">
-          ⭐ Here is the perfect roadmap for you:
-        </h2>
+      {/* Heading */}
+      <h2
+        style={{
+          fontSize: "22px",
+          marginBottom: "30px",
+          fontWeight: "600",
+        }}
+      >
+        Your personalized journey
+      </h2>
 
-        {!roadmap ? (
-          <p className="text-gray-600">Generating roadmap…</p>
-        ) : (
-          <>
-            {/* Horizontal Timeline */}
-            <div className="w-full overflow-x-auto py-6">
-              <div className="flex items-center space-x-12 px-4">
-                {roadmap.topics.map((step, i) => (
-                  <div key={i} className="flex flex-col items-center min-w-[200px]">
-                    <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center border border-blue-300 mb-3">
-                      <span className="text-blue-600 text-xl">📘</span>
-                    </div>
-                    <div className="bg-white shadow-md border rounded-xl px-6 py-3 text-center">
-                      <h3 className="font-bold text-lg text-gray-900">
-                        Step {step.sequenceNumber}
-                      </h3>
-                    </div>
-                    <div className="h-8 w-1 bg-blue-300 my-2 rounded-full" />
-                    <p className="text-gray-700 text-center max-w-[180px] text-sm">
-                      {step.title}
-                    </p>
-                  </div>
-                ))}
+      {/* Timeline */}
+      <div style={{ position: "relative", padding: "20px 0" }}>
+        
+        {/* Center Line */}
+        <div
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: 0,
+            bottom: 0,
+            width: "2px",
+            background: "#e5e7eb",
+            transform: "translateX(-50%)",
+          }}
+        />
+
+        {roadmap?.topics.map((step, i) => {
+          const isLeft = i % 2 === 0;
+
+          return (
+            <div
+              key={i}
+              style={{
+                display: "flex",
+                justifyContent: isLeft ? "flex-start" : "flex-end",
+                marginBottom: "50px",
+                position: "relative",
+              }}
+            >
+              {/* Card */}
+              <div
+                style={{
+                  width: "42%",
+                  background: "#ffffff",
+                  padding: "18px",
+                  borderRadius: "14px",
+                  border: "1px solid #e5e7eb",
+                  boxShadow: "0 8px 20px rgba(0,0,0,0.05)",
+                  transition: "0.25s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-4px)";
+                  e.currentTarget.style.boxShadow =
+                    "0 12px 25px rgba(0,0,0,0.08)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow =
+                    "0 8px 20px rgba(0,0,0,0.05)";
+                }}
+              >
+                <h3
+                  style={{
+                    fontWeight: "600",
+                    marginBottom: "6px",
+                    fontSize: "15px",
+                  }}
+                >
+                  Step {step.sequenceNumber}
+                </h3>
+
+                <p
+                  style={{
+                    color: "#6b7280",
+                    fontSize: "14px",
+                    lineHeight: "1.5",
+                  }}
+                >
+                  {step.title}
+                </p>
+              </div>
+
+              {/* Circle */}
+              <div
+                style={{
+                  position: "absolute",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  width: "38px",
+                  height: "38px",
+                  borderRadius: "50%",
+                  background: "#111827",
+                  color: "#fff",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
+                }}
+              >
+                {step.sequenceNumber}
               </div>
             </div>
-
-            <div className="text-center mt-10">
-              <button
-                onClick={() => navigate(getCourseUrl())}
-                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md transition"
-              >
-                🚀 Start Learning
-              </button>
-            </div>
-          </>
-        )}
+          );
+        })}
       </div>
-    );
+
+      {/* Button */}
+      <div style={{ textAlign: "center", marginTop: "40px" }}>
+        <button
+          onClick={() => navigate(getCourseUrl())}
+          style={{
+            padding: "14px 30px",
+            borderRadius: "12px",
+            background: "#111827",
+            color: "#fff",
+            border: "none",
+            fontSize: "15px",
+            fontWeight: "500",
+            cursor: "pointer",
+            transition: "0.25s",
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.background = "#4f46e5";
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.background = "#111827";
+          }}
+        >
+          Start Learning
+        </button>
+      </div>
+    </div>
+  </div>
+);
   }
 
   if (loading) return <p className="text-center mt-20">Loading questions…</p>;
@@ -200,28 +315,107 @@ export default function InitialAssessment() {
   const q = questions[index];
   if (!q) return <p className="text-center mt-20 text-red-600">No questions found. Please try again.</p>;
 
-  return (
-    <div className="max-w-xl mx-auto p-6">
-      <p className="text-sm text-gray-400 mb-2">
-        Question {index + 1} of {questions.length}
+return (
+  <div
+    style={{
+      minHeight: "100vh",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      background: "#f8fafc",
+      fontFamily: "Inter, sans-serif",
+      padding: "20px",
+    }}
+  >
+    <div
+      style={{
+        width: "100%",
+        maxWidth: "700px",
+        background: "#ffffff",
+        borderRadius: "20px",
+        padding: "32px",
+        boxShadow: "0 10px 30px rgba(0,0,0,0.06)",
+      }}
+    >
+      {/* Progress */}
+      <div style={{ marginBottom: "20px" }}>
+        <div
+          style={{
+            height: "6px",
+            borderRadius: "10px",
+            background: "#e5e7eb",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              width: `${((index + 1) / questions.length) * 100}%`,
+              height: "100%",
+              background: "#111827",
+              transition: "0.3s",
+            }}
+          />
+        </div>
+
+        <p style={{ fontSize: "12px", color: "#6b7280", marginTop: "6px" }}>
+          Question {index + 1} of {questions.length}
+        </p>
+      </div>
+
+      {/* Heading */}
+      <h2
+        style={{
+          fontSize: "22px",
+          fontWeight: "600",
+          marginBottom: "10px",
+          color: "#111827",
+        }}
+      >
+        Let’s understand your level
+      </h2>
+
+      {/* Question */}
+      <p
+        style={{
+          fontSize: "16px",
+          fontWeight: "500",
+          marginBottom: "20px",
+          color: "#374151",
+        }}
+      >
+        {q.question}
       </p>
-      <h1 className="text-2xl font-bold mb-4 text-gray-800">
-        Let's analyse your skill level
-      </h1>
 
-      <p className="text-lg mb-4 font-medium">{q.question}</p>
-
-      <div className="space-y-3">
+      {/* Options */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
         {q.options.map((opt, i) => (
           <button
             key={i}
-            className="w-full text-left p-3 rounded-lg border hover:bg-blue-50 transition"
             onClick={() => handleAnswer(i)}
+            style={{
+              padding: "14px",
+              borderRadius: "12px",
+              border: "1px solid #e5e7eb",
+              background: "#ffffff",
+              textAlign: "left",
+              fontSize: "14px",
+              cursor: "pointer",
+              transition: "0.25s",
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.background = "#f3f4f6";
+              e.target.style.transform = "translateY(-2px)";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = "#ffffff";
+              e.target.style.transform = "translateY(0)";
+            }}
           >
             {opt}
           </button>
         ))}
       </div>
     </div>
-  );
+  </div>
+);
 }
