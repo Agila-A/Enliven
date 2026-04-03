@@ -4,7 +4,7 @@ export function ProgressBar({
   progress, 
   showLabel = false, 
   size = 'md',
-  color = 'primary',
+  colorClass = 'bg-red', // Allow dynamic class passing or default
   className = '' 
 }) {
   const clampedProgress = Math.min(Math.max(progress, 0), 100);
@@ -12,26 +12,19 @@ export function ProgressBar({
   const heightClasses = {
     sm: 'h-1.5',
     md: 'h-2.5',
-    lg: 'h-3'
-  };
-  
-  const colorClasses = {
-    primary: 'bg-primary',
-    success: 'bg-success',
-    warning: 'bg-warning',
-    purple: 'bg-[#582B5B]'
+    lg: 'h-4'
   };
   
   return (
     <div className={`w-full ${className}`}>
-      <div className={`w-full bg-secondary rounded-full overflow-hidden ${heightClasses[size]}`}>
+      <div className={`w-full bg-cream/50 rounded-full overflow-hidden ${heightClasses[size]}`}>
         <div 
-          className={`${heightClasses[size]} ${colorClasses[color]} rounded-full transition-all duration-300 ease-out`}
+          className={`${heightClasses[size]} ${colorClass} rounded-full transition-all duration-500 ease-out`}
           style={{ width: `${clampedProgress}%` }}
         />
       </div>
       {showLabel && (
-        <p className="text-sm text-muted-foreground mt-1">{clampedProgress}% complete</p>
+        <p className="text-sm font-medium text-foreground/60 mt-2 text-right">{clampedProgress}% complete</p>
       )}
     </div>
   );

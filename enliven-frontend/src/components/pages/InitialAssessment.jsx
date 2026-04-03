@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { updateStudyBuddyContext } from "../../utils/studyBuddy.js";
+import { Sparkles, Target, Settings, Brain } from "lucide-react";
 
 export default function InitialAssessment() {
   const [questions, setQuestions] = useState([]);
@@ -14,9 +15,6 @@ export default function InitialAssessment() {
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
 
-  // ----------------------------------------
-  // LOAD QUESTIONS
-  // ----------------------------------------
   useEffect(() => {
     const loadQuestions = async () => {
       try {
@@ -33,11 +31,8 @@ export default function InitialAssessment() {
       }
     };
     loadQuestions();
-  }, []);
+  }, [token]);
 
-  // ----------------------------------------
-  // HANDLE ANSWER
-  // ----------------------------------------
   const handleAnswer = (optionIndex) => {
     const grade = ["A", "B", "C", "D"][optionIndex];
     const updated = [...answers, grade];
@@ -50,13 +45,9 @@ export default function InitialAssessment() {
     }
   };
 
-  // ----------------------------------------
-  // SUBMIT ASSESSMENT + GENERATE ROADMAP
-  // ----------------------------------------
   const submitAssessment = async (finalAnswers) => {
     setSubmitting(true);
     try {
-      // STEP 1 — evaluate answers, get skill level
       const res = await fetch(
         `${import.meta.env.VITE_API_URL}/api/user/initial-assessment`,
         {
@@ -73,10 +64,6 @@ export default function InitialAssessment() {
       const skillLevel = data.skillLevel;
       setResult(skillLevel);
 
-      // BUG FIX: domain should come from the API response or user object,
-      // not just localStorage (which may be stale or missing after re-login).
-      // The /api/user/initial-assessment endpoint should return domain too,
-      // but we fall back to localStorage as secondary.
       const domain = data.domain || localStorage.getItem("domain");
 
       updateStudyBuddyContext({
@@ -85,7 +72,6 @@ export default function InitialAssessment() {
         domain,
       });
 
-      // STEP 2 — generate roadmap
       const roadmapRes = await fetch(
         `${import.meta.env.VITE_API_URL}/api/roadmap/generate`,
         {
@@ -107,7 +93,6 @@ export default function InitialAssessment() {
         roadmap: rm,
       });
 
-      // Store in localStorage so Dashboard and CoursePage can use it
       localStorage.setItem("roadmap", JSON.stringify(rm));
 
     } catch (err) {
@@ -117,305 +102,142 @@ export default function InitialAssessment() {
     }
   };
 
-  // ----------------------------------------
-  // HELPERS — build course URL safely
-  // ----------------------------------------
   const getCourseUrl = () => {
     if (!roadmap) return "/dashboard";
-    // BUG FIX: roadmap.domain and roadmap.skillLevel must be slugified
-    // to match what CoursePage's useParams() will receive.
     const domain = String(roadmap.domain || "").toLowerCase().replace(/\s+/g, "-");
     const level = String(roadmap.skillLevel || "").toLowerCase().replace(/[^a-z]/g, "");
     return `/courses/${domain}/${level}`;
   };
 
-  // ----------------------------------------
-  // RESULT + ROADMAP TIMELINE UI
-  // ----------------------------------------
   if (submitting) {
     return (
-      <div className="max-w-xl mx-auto p-6 text-center mt-20">
-        <p className="text-gray-600 text-lg">Analysing your answers and generating your roadmap…</p>
+      <div className="min-h-screen bg-cream/20 flex flex-col items-center justify-center p-6 font-sans">
+        <div className="w-20 h-20 bg-yellow/20 rounded-full flex items-center justify-center mb-6 animate-pulse">
+            <Settings className="w-10 h-10 text-yellow animate-spin" />
+        </div>
+        <h2 className="text-2xl font-bold text-foreground mb-2">Analyzing your answers...</h2>
+        <p className="text-foreground/60 text-lg text-center max-w-sm">Generating your personalized AI roadmap</p>
       </div>
     );
   }
 
   if (result) {
-return (
-  <div
-    style={{
-      minHeight: "100vh",
-      background: "#f8fafc",
-      padding: "40px 20px",
-      fontFamily: "Inter, sans-serif",
-    }}
-  >
-    <div style={{ maxWidth: "900px", margin: "0 auto" }}>
-      
-      {/* Skill Level */}
-      <h1 style={{ fontSize: "28px", fontWeight: "600", marginBottom: "10px" }}>
-        Your Skill Level
-      </h1>
-
-      <div
-        style={{
-          padding: "18px",
-          borderRadius: "14px",
-          background: "#111827",
-          color: "#fff",
-          marginBottom: "40px",
-          textAlign: "center",
-          fontSize: "16px",
-        }}
-      >
-        You are <b>{result}</b> in this domain
-      </div>
-
-      {/* Heading */}
-      <h2
-        style={{
-          fontSize: "22px",
-          marginBottom: "30px",
-          fontWeight: "600",
-        }}
-      >
-        Your personalized journey
-      </h2>
-
-      {/* Timeline */}
-      <div style={{ position: "relative", padding: "20px 0" }}>
-        
-        {/* Center Line */}
-        <div
-          style={{
-            position: "absolute",
-            left: "50%",
-            top: 0,
-            bottom: 0,
-            width: "2px",
-            background: "#e5e7eb",
-            transform: "translateX(-50%)",
-          }}
-        />
-
-        {roadmap?.topics.map((step, i) => {
-          const isLeft = i % 2 === 0;
-
-          return (
-            <div
-              key={i}
-              style={{
-                display: "flex",
-                justifyContent: isLeft ? "flex-start" : "flex-end",
-                marginBottom: "50px",
-                position: "relative",
-              }}
-            >
-              {/* Card */}
-              <div
-                style={{
-                  width: "42%",
-                  background: "#ffffff",
-                  padding: "18px",
-                  borderRadius: "14px",
-                  border: "1px solid #e5e7eb",
-                  boxShadow: "0 8px 20px rgba(0,0,0,0.05)",
-                  transition: "0.25s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "translateY(-4px)";
-                  e.currentTarget.style.boxShadow =
-                    "0 12px 25px rgba(0,0,0,0.08)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.boxShadow =
-                    "0 8px 20px rgba(0,0,0,0.05)";
-                }}
-              >
-                <h3
-                  style={{
-                    fontWeight: "600",
-                    marginBottom: "6px",
-                    fontSize: "15px",
-                  }}
-                >
-                  Step {step.sequenceNumber}
-                </h3>
-
-                <p
-                  style={{
-                    color: "#6b7280",
-                    fontSize: "14px",
-                    lineHeight: "1.5",
-                  }}
-                >
-                  {step.title}
-                </p>
-              </div>
-
-              {/* Circle */}
-              <div
-                style={{
-                  position: "absolute",
-                  left: "50%",
-                  transform: "translateX(-50%)",
-                  width: "38px",
-                  height: "38px",
-                  borderRadius: "50%",
-                  background: "#111827",
-                  color: "#fff",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "13px",
-                  fontWeight: "600",
-                  boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
-                }}
-              >
-                {step.sequenceNumber}
-              </div>
+    return (
+      <div className="min-h-screen bg-cream/20 py-16 px-6 font-sans">
+        <div className="max-w-3xl mx-auto">
+          
+          <div className="text-center mb-12">
+            <div className="w-20 h-20 bg-green/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Target className="w-10 h-10 text-green" />
             </div>
-          );
-        })}
-      </div>
+            <h1 className="text-4xl font-bold mb-4 text-foreground">Your Skill Level</h1>
+            <div className="inline-block bg-red px-8 py-4 rounded-full text-white shadow-soft">
+              You are <b className="font-bold text-xl uppercase tracking-wider ml-1">{result}</b> in this domain
+            </div>
+          </div>
 
-      {/* Button */}
-      <div style={{ textAlign: "center", marginTop: "40px" }}>
-        <button
-          onClick={() => navigate(getCourseUrl())}
-          style={{
-            padding: "14px 30px",
-            borderRadius: "12px",
-            background: "#111827",
-            color: "#fff",
-            border: "none",
-            fontSize: "15px",
-            fontWeight: "500",
-            cursor: "pointer",
-            transition: "0.25s",
-          }}
-          onMouseEnter={(e) => {
-            e.target.style.background = "#4f46e5";
-          }}
-          onMouseLeave={(e) => {
-            e.target.style.background = "#111827";
-          }}
-        >
-          Start Learning
-        </button>
+          <h2 className="text-3xl font-bold text-center mb-12 text-foreground">Your Personalized Journey</h2>
+
+          {/* Timeline */}
+          <div className="relative py-10 px-4">
+            {/* Center Line */}
+            <div className="absolute left-1/2 top-0 bottom-0 w-1 bg-cream/80 transform -translate-x-1/2 rounded-full hidden md:block" />
+
+            {roadmap?.topics.map((step, i) => {
+              const isLeft = i % 2 === 0;
+              return (
+                <div key={i} className={`flex flex-col md:flex-row items-center md:items-start justify-center ${isLeft ? 'md:justify-start' : 'md:justify-end'} mb-16 relative w-full`}>
+                  
+                  {/* Circle (Absolute on Desktop, static on mobile) */}
+                  <div className="flex-shrink-0 w-16 h-16 rounded-full bg-yellow/20 text-yellow flex items-center justify-center text-xl font-bold shadow-sm md:absolute md:left-1/2 md:transform md:-translate-x-1/2 z-10 border-4 border-white mb-6 md:mb-0">
+                    {step.sequenceNumber}
+                  </div>
+
+                  {/* Card */}
+                  <div className={`w-full md:w-5/12 bg-white p-8 rounded-3xl border border-cream shadow-sm hover:shadow-soft transition-all duration-300 transform hover:-translate-y-1 ${isLeft ? 'md:mr-auto' : 'md:ml-auto'}`}>
+                    <h3 className="font-bold text-xl mb-3 text-red">Step {step.sequenceNumber}</h3>
+                    <p className="text-foreground/70 text-lg leading-relaxed font-medium">{step.title}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="text-center mt-12">
+            <button
+              onClick={() => navigate(getCourseUrl())}
+              className="px-10 py-5 rounded-2xl bg-red text-white font-bold text-xl shadow-md hover:shadow-lg hover:bg-red/90 transition-all transform hover:-translate-y-1 flex items-center justify-center mx-auto"
+            >
+              Start Learning <Sparkles className="w-6 h-6 ml-3" />
+            </button>
+          </div>
+        </div>
       </div>
-    </div>
-  </div>
-);
+    );
   }
 
-  if (loading) return <p className="text-center mt-20">Loading questions…</p>;
+  if (loading) return (
+      <div className="min-h-screen bg-cream/20 flex flex-col items-center justify-center">
+          <Brain className="w-12 h-12 text-red animate-pulse mb-4" />
+          <p className="text-center text-lg font-bold text-foreground">Loading questions…</p>
+      </div>
+  );
 
   const q = questions[index];
-  if (!q) return <p className="text-center mt-20 text-red-600">No questions found. Please try again.</p>;
+  if (!q) return <p className="text-center mt-20 text-red font-bold">No questions found. Please try again.</p>;
 
-return (
-  <div
-    style={{
-      minHeight: "100vh",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      background: "#f8fafc",
-      fontFamily: "Inter, sans-serif",
-      padding: "20px",
-    }}
-  >
-    <div
-      style={{
-        width: "100%",
-        maxWidth: "700px",
-        background: "#ffffff",
-        borderRadius: "20px",
-        padding: "32px",
-        boxShadow: "0 10px 30px rgba(0,0,0,0.06)",
-      }}
-    >
-      {/* Progress */}
-      <div style={{ marginBottom: "20px" }}>
-        <div
-          style={{
-            height: "6px",
-            borderRadius: "10px",
-            background: "#e5e7eb",
-            overflow: "hidden",
-          }}
-        >
-          <div
-            style={{
-              width: `${((index + 1) / questions.length) * 100}%`,
-              height: "100%",
-              background: "#111827",
-              transition: "0.3s",
-            }}
-          />
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-cream/30 font-sans p-6 overflow-hidden relative">
+      {/* Decorative Blobs */}
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-yellow/20 rounded-full blur-[80px] pointer-events-none"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-green/20 rounded-full blur-[80px] pointer-events-none"></div>
+
+      <div className="w-full max-w-3xl bg-white rounded-[2rem] p-10 md:p-12 shadow-soft border border-cream/50 relative z-10 transition-all">
+        
+        {/* Progress */}
+        <div className="mb-10">
+          <div className="h-3 rounded-full bg-cream overflow-hidden">
+            <div
+              className="h-full bg-red transition-all duration-500 ease-out rounded-full"
+              style={{ width: `${((index + 1) / questions.length) * 100}%` }}
+            />
+          </div>
+          <p className="text-sm font-bold text-foreground/50 mt-4 text-right uppercase tracking-wider">
+            Question {index + 1} of {questions.length}
+          </p>
         </div>
 
-        <p style={{ fontSize: "12px", color: "#6b7280", marginTop: "6px" }}>
-          Question {index + 1} of {questions.length}
+        {/* Heading */}
+        <div className="flex items-center space-x-3 mb-6">
+            <Brain className="w-8 h-8 text-yellow" />
+            <h2 className="text-3xl font-bold text-foreground">
+                Let’s understand your level
+            </h2>
+        </div>
+
+        {/* Question */}
+        <p className="text-xl font-medium mb-10 text-foreground/80 leading-relaxed border-l-4 border-red pl-6 py-2">
+          {q.question}
         </p>
-      </div>
 
-      {/* Heading */}
-      <h2
-        style={{
-          fontSize: "22px",
-          fontWeight: "600",
-          marginBottom: "10px",
-          color: "#111827",
-        }}
-      >
-        Let’s understand your level
-      </h2>
-
-      {/* Question */}
-      <p
-        style={{
-          fontSize: "16px",
-          fontWeight: "500",
-          marginBottom: "20px",
-          color: "#374151",
-        }}
-      >
-        {q.question}
-      </p>
-
-      {/* Options */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-        {q.options.map((opt, i) => (
-          <button
-            key={i}
-            onClick={() => handleAnswer(i)}
-            style={{
-              padding: "14px",
-              borderRadius: "12px",
-              border: "1px solid #e5e7eb",
-              background: "#ffffff",
-              textAlign: "left",
-              fontSize: "14px",
-              cursor: "pointer",
-              transition: "0.25s",
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.background = "#f3f4f6";
-              e.target.style.transform = "translateY(-2px)";
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.background = "#ffffff";
-              e.target.style.transform = "translateY(0)";
-            }}
-          >
-            {opt}
-          </button>
-        ))}
+        {/* Options */}
+        <div className="flex flex-col gap-4">
+          {q.options.map((opt, i) => (
+            <button
+              key={i}
+              onClick={() => handleAnswer(i)}
+              className="p-6 rounded-2xl border-2 border-cream/80 bg-white text-left text-lg font-medium text-foreground hover:bg-cream/30 hover:border-red hover:shadow-sm transform hover:-translate-y-1 transition-all focus:outline-none focus:ring-2 focus:ring-red/50"
+            >
+              <div className="flex items-center text-foreground">
+                  <span className="w-8 h-8 bg-cream rounded-full flex items-center justify-center font-bold text-red mr-4 flex-shrink-0">
+                      {["A", "B", "C", "D"][i]}
+                  </span>
+                  {opt}
+              </div>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
 }

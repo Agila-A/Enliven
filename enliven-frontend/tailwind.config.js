@@ -7,45 +7,55 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Core theme values mapped to CSS variables
+        // Enliven brand colors requested
+        cream: "#F2E7CB",
+        red: "#C54F2D",
+        yellow: "#EEBF43",
+        green: "#94B38A",
+
+        // Semantic mapping
         background: "var(--background)",
         foreground: "var(--foreground)",
-        primary: "var(--primary)",
-        "primary-foreground": "var(--primary-foreground)",
-        card: "var(--card)",
-        "card-foreground": "var(--card-foreground)",
-        muted: "var(--muted)",
-        "muted-foreground": "var(--muted-foreground)",
-
+        primary: {
+          DEFAULT: "var(--primary)",
+          foreground: "var(--primary-foreground)",
+        },
+        secondary: {
+          DEFAULT: "var(--secondary)",
+          foreground: "var(--secondary-foreground)",
+        },
+        accent: {
+          DEFAULT: "var(--accent)",
+          foreground: "var(--accent-foreground)",
+        },
+        card: {
+          DEFAULT: "var(--card)",
+          foreground: "var(--card-foreground)",
+        },
+        popover: {
+          DEFAULT: "var(--popover)",
+          foreground: "var(--popover-foreground)",
+        },
+        muted: {
+          DEFAULT: "var(--muted)",
+          foreground: "var(--muted-foreground)",
+        },
         success: "var(--success)",
         warning: "var(--warning)",
         destructive: "var(--destructive)",
-
-        // ------- ENLIVEN FULL BRAND COLORS -------
-        enliven: {
-          primary: "var(--enliven-primary)",
-          "primary-light": "var(--enliven-primary-light)",
-          "primary-dark": "var(--enliven-primary-dark)",
-
-          purple: "var(--enliven-purple)",
-          "dark-purple": "var(--enliven-dark-purple)",
-          "deep-purple": "var(--enliven-deep-purple)",
-
-          mauve: "var(--enliven-mauve)",
-          pink: "var(--enliven-pink)",
-          cream: "var(--enliven-cream)",
-        },
-
-        // Legacy (keep for safety)
-        purple: {
-          DEFAULT: "var(--enliven-purple)",
-          dark: "var(--enliven-dark-purple)",
-        },
       },
-
       borderColor: {
         DEFAULT: "var(--border)",
       },
+      borderRadius: {
+        xl: `calc(var(--radius) + 4px)`,
+        lg: `var(--radius)`,
+        md: `calc(var(--radius) - 2px)`,
+        sm: `calc(var(--radius) - 4px)`,
+      },
+      boxShadow: {
+        soft: "0 10px 40px -10px rgba(0,0,0,0.08)",
+      }
     },
   },
   plugins: [],

@@ -1,12 +1,5 @@
 /*
   COURSEPAGE.JSX — MODULE LOCKING + MODULE TESTS + FINAL TEST
-  
-  KEY FIXES:
-  1. Module unlock gate now reads moduleStatus from the DB (via /api/progress/:courseId),
-     NOT from localStorage — so progress persists after logout/login.
-  2. The first module is always unlocked for new users.
-  3. Sections correctly start locked except module 1.
-  4. "Take Test" only appears when ALL videos in a section are completed.
 */
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -20,6 +13,7 @@ import {
   FileText,
   Download,
   LoaderCircle,
+  BookOpen
 } from "lucide-react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "../ui/button";
@@ -75,7 +69,7 @@ const mapToObj = (m) => {
 export default function CoursePage() {
   const { domain, level } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();  // FIX: detect navigation back from assessment
+  const location = useLocation();  
   const courseId = useMemo(() => buildCourseId(domain, level), [domain, level]);
 
   const [sections, setSections] = useState([]);
@@ -85,9 +79,7 @@ export default function CoursePage() {
   const [autoNotes, setAutoNotes] = useState("");
   const [error, setError] = useState("");
 
-  // BUG FIX: moduleStatus now lives in state (loaded from DB), not localStorage.
-  // This is the source of truth for which modules are unlocked after login.
-  const [moduleStatus, setModuleStatus] = useState({}); // { "1": "completed", "2": "completed", ... }
+  const [moduleStatus, setModuleStatus] = useState({});
 
   useEffect(() => {
     let mounted = true;
@@ -99,7 +91,6 @@ export default function CoursePage() {
       try {
         const token = localStorage.getItem("token");
 
-        // Fetch course content (merged roadmap + JSON videos)
         const res = await fetch(
           `${import.meta.env.VITE_API_URL}/api/courses/${domain}/${level}/merged`,
           { headers: { Authorization: `Bearer ${token}` } }
@@ -115,7 +106,6 @@ export default function CoursePage() {
 
         const items = Array.isArray(data.items) ? data.items : [];
 
-        // Fetch progress from DB (persists across logout/login)
         const pres = await fetch(
           `${import.meta.env.VITE_API_URL}/api/progress/${courseId}`,
           { headers: { Authorization: `Bearer ${token}` } }
@@ -127,11 +117,9 @@ export default function CoursePage() {
 
         const progressMap = normalizeProgress(pjson.progress || []);
 
-        // BUG FIX: load moduleStatus from DB response (not localStorage)
         const dbModuleStatus = pjson.moduleStatus || {};
         if (mounted) setModuleStatus(dbModuleStatus);
 
-        // Build sections
         const builtSections = items.map((step) => {
           const topicId = buildTopicId(step.sequenceNumber);
           const lessons = [];
@@ -168,9 +156,6 @@ export default function CoursePage() {
           };
         });
 
-        // BUG FIX: determine which modules are unlocked using DB moduleStatus.
-        // Module 1 is always unlocked.
-        // Module N is unlocked only if module N-1's test is "completed" in DB.
         for (let i = 0; i < builtSections.length; i++) {
           const sec = builtSections[i];
           const isFirstModule = i === 0;
@@ -182,7 +167,6 @@ export default function CoursePage() {
           const isUnlocked = isFirstModule || prevTestPassed;
 
           if (isUnlocked) {
-            // Unlock the first video in this section
             let firstVideoUnlocked = false;
             sec.lessons = sec.lessons.map((lesson) => {
               if (!firstVideoUnlocked && lesson.type === "video") {
@@ -194,7 +178,6 @@ export default function CoursePage() {
           }
         }
 
-        // Overlay saved progress on top of the unlock state
         let initialActive = null;
 
         for (const sec of builtSections) {
@@ -224,7 +207,6 @@ export default function CoursePage() {
           }
         }
 
-        // Default: open the first lesson of module 1 if nothing is in progress
         if (!initialActive && builtSections[0]?.lessons[0]) {
           builtSections[0].expanded = true;
           builtSections[0].lessons[0].status = "current";
@@ -254,10 +236,10 @@ export default function CoursePage() {
 
   const iconFor = (lesson) => {
     if (lesson.status === "completed")
-      return <CheckCircle className="w-5 h-5 text-green-500" />;
+      return <CheckCircle className="w-5 h-5 text-green" />;
     if (lesson.status === "current")
-      return <Play className="w-5 h-5 text-blue-500" />;
-    return <Lock className="w-5 h-5 text-gray-400" />;
+      return <Play className="w-5 h-5 text-red" />;
+    return <Lock className="w-5 h-5 text-foreground/30" />;
   };
 
   const isSectionCompleted = (section) => {
@@ -269,9 +251,6 @@ export default function CoursePage() {
   const allModulesCompleted =
     sections.length > 0 && sections.every(isSectionCompleted);
 
-  // Save video progress to DB
-  // FIX: also send videoCount (total videos in this topic) so dashboard
-  // can calculate accurate overall progress % across all modules.
   const saveProgress = async ({ topicId, videoProgressMap, currentIndex, videoCount }) => {
     try {
       const token = localStorage.getItem("token");
@@ -286,7 +265,7 @@ export default function CoursePage() {
           topicId,
           videoProgress: mapToObj(videoProgressMap),
           currentIndex,
-          videoCount, // real total for this topic from merged course content
+          videoCount, 
         }),
       });
     } catch (e) {
@@ -312,7 +291,6 @@ export default function CoursePage() {
       const currentTopicId = activeLesson.topicId;
       const currentSection = updated.find((s) => s.id === currentTopicId);
 
-      // Save video progress to DB
       if (currentSection) {
         const videoProgressMap = new Map();
         for (const les of currentSection.lessons) {
@@ -333,7 +311,6 @@ export default function CoursePage() {
           currentIndex = keys.length ? Math.max(...keys) : 0;
         }
 
-        // Count total videos in this section from the lessons array
         const totalVideosInSection = currentSection.lessons.filter(
           l => l.type === "video" && l.videoIndex != null
         ).length;
@@ -342,17 +319,15 @@ export default function CoursePage() {
           topicId: currentTopicId,
           videoProgressMap,
           currentIndex,
-          videoCount: totalVideosInSection, // FIX: send real total
+          videoCount: totalVideosInSection,
         });
       }
 
-      // Unlock next lesson within same module
       if (next && next.status === "locked") {
         const nextModuleId = next.topicId;
         const currentModuleId = currentTopicId;
 
         if (nextModuleId === currentModuleId) {
-          // Next video is in same module — unlock it
           updated.forEach((sec) => {
             sec.lessons = sec.lessons.map((l) =>
               l.id === next.id ? { ...l, status: "current" } : l
@@ -361,7 +336,6 @@ export default function CoursePage() {
           });
           setTimeout(() => setActiveLesson(next), 0);
         } else {
-          // BUG FIX: check DB moduleStatus (in state), not localStorage
           const testPassed = moduleStatus[currentModuleId] === "completed";
 
           if (!testPassed) {
@@ -370,7 +344,6 @@ export default function CoursePage() {
             return updated;
           }
 
-          // Module test passed — unlock first lesson of next module
           updated.forEach((sec) => {
             sec.lessons = sec.lessons.map((l) =>
               l.id === next.id ? { ...l, status: "current" } : l
@@ -393,16 +366,11 @@ export default function CoursePage() {
     });
   };
 
-  // FIX: whenever the user navigates back to this page (e.g. from AssessmentPage),
-  // re-fetch moduleStatus from the DB so newly-passed modules unlock immediately.
-  // This runs on every location.key change (every navigation to this page).
   useEffect(() => {
     if (!courseId) return;
     refreshModuleStatus();
-  }, [location.key]); // eslint-disable-line
+  }, [location.key]); 
 
-  // Called when the user returns from the assessment page after passing a module test.
-  // We refresh moduleStatus from the DB so the next module unlocks immediately.
   const refreshModuleStatus = async () => {
     try {
       const token = localStorage.getItem("token");
@@ -415,21 +383,17 @@ export default function CoursePage() {
         const newStatus = pjson.moduleStatus || {};
         setModuleStatus(newStatus);
 
-        // FIX: also unlock sections in state based on new moduleStatus
-        // so lessons become clickable without a full page reload
         setSections(prev => {
           const updated = prev.map((sec, i) => {
             const isFirst  = i === 0;
             const prevSec  = i > 0 ? prev[i - 1] : null;
             const unlocked = isFirst || (prevSec && newStatus[prevSec.id] === "completed");
 
-            if (!unlocked) return sec; // still locked — no change
+            if (!unlocked) return sec;
 
-            // Already has unlocked lessons — don't reset their status
             const hasUnlocked = sec.lessons.some(l => l.status !== "locked");
             if (hasUnlocked) return sec;
 
-            // Unlock first video in this section
             let firstDone = false;
             return {
               ...sec,
@@ -473,60 +437,79 @@ export default function CoursePage() {
     }
   };
 
-  if (loading) return <p className="p-10 text-center">Loading…</p>;
-  if (error) return <p className="p-10 text-red-600">{error}</p>;
+  if (loading) return <div className="p-10 flex justify-center"><p className="text-foreground/70 font-medium">Loading…</p></div>;
+  if (error) return <div className="p-10 flex justify-center"><p className="text-red font-medium">{error}</p></div>;
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="bg-card p-6 border-b">
-          <h1 className="text-2xl font-bold">
-            {toTitleCase(domain)} ({cap1(level)})
-          </h1>
-          <p className="text-muted-foreground">
-            Personalized course content based on your roadmap.
-          </p>
-          <div className="mt-4">
-            <ProgressBar progress={progress} />
+    <div className="flex h-[calc(100vh-6rem)] overflow-hidden bg-cream/20 font-sans mt-3">
+      <div className="flex-1 flex flex-col overflow-hidden px-4 md:px-8 pb-8">
+        
+        {/* Header box */}
+        <div className="bg-white p-6 md:p-8 rounded-3xl border border-cream shadow-sm mb-6 shrink-0 transition-shadow hover:shadow-soft">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div>
+              <div className="flex items-center space-x-3 mb-2">
+                <BookOpen className="w-6 h-6 text-red" />
+                <h1 className="text-3xl font-bold tracking-tight text-foreground">
+                  {toTitleCase(domain)} <span className="text-foreground/50 text-2xl font-semibold">({cap1(level)})</span>
+                </h1>
+              </div>
+              <p className="text-foreground/60 font-medium ml-9">
+                Dynamic adaptive syllabus.
+              </p>
+            </div>
+            <div className="md:w-1/3">
+               <ProgressBar progress={progress} colorClass="bg-red" showLabel={true} />
+            </div>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto pr-2 pb-10 custom-scrollbar">
           {activeLesson?.type === "video" ? (
-            <div className="aspect-video rounded-xl overflow-hidden bg-black">
+            <div className="aspect-video w-full rounded-3xl overflow-hidden bg-foreground shadow-lg border-4 border-white">
               <iframe
                 width="100%"
                 height="100%"
                 src={activeLesson.url}
                 allowFullScreen
                 title="Lesson video"
+                className="w-full h-full"
               />
             </div>
           ) : (
-            <div className="aspect-video bg-gray-900 text-white rounded-xl flex items-center justify-center">
-              <FileText className="w-10 h-10 mr-2" /> Reading Material
+            <div className="aspect-video bg-white border border-cream rounded-3xl flex flex-col items-center justify-center shadow-inner">
+              <div className="w-20 h-20 bg-cream/50 rounded-full flex items-center justify-center mb-4">
+                  <FileText className="w-10 h-10 text-red" />
+              </div>
+              <p className="text-xl font-bold text-foreground">Reading Material</p>
             </div>
           )}
 
-          <Button className="mt-4" onClick={completeCurrentLesson}>
-            Mark as Completed
-          </Button>
+          <div className="mt-8 flex justify-end">
+            <button 
+              className="px-8 py-3 bg-red text-white font-bold rounded-xl shadow-md hover:bg-red/90 transition-all hover:-translate-y-0.5" 
+              onClick={completeCurrentLesson}
+            >
+              Mark as Completed <CheckCircle className="w-5 h-5 ml-2 inline-block" />
+            </button>
+          </div>
 
-          <Tabs defaultValue="overview" className="mt-6">
-            <TabsList>
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="notes">AI Notes</TabsTrigger>
+          <Tabs defaultValue="overview" className="mt-8">
+            <TabsList className="bg-cream/50 p-1 rounded-xl">
+              <TabsTrigger value="overview" className="rounded-lg font-semibold data-[state=active]:bg-white data-[state=active]:text-red data-[state=active]:shadow-sm transition-all px-6 py-2.5">Overview</TabsTrigger>
+              <TabsTrigger value="notes" className="rounded-lg font-semibold data-[state=active]:bg-white data-[state=active]:text-yellow data-[state=active]:shadow-sm transition-all px-6 py-2.5">AI Notes ✨</TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview">
-              <div className="p-4 border rounded-xl mt-4 bg-card">
-                <h2 className="font-semibold text-xl">{activeLesson?.title}</h2>
+              <div className="p-8 border border-cream rounded-3xl mt-4 bg-white shadow-sm">
+                <h2 className="font-bold text-2xl text-foreground mb-4">{activeLesson?.title || "Lesson Overview"}</h2>
+                <p className="text-foreground/60 leading-relaxed font-medium">Pay close attention to this material—it's essential to pass the module test.</p>
                 {activeLesson?.resource && (
-                  <div className="mt-4">
+                  <div className="mt-6">
                     <a href={activeLesson.resource} target="_blank" rel="noreferrer">
-                      <Button variant="outline">
-                        <Download className="w-4 h-4 mr-2" /> Download Resource
-                      </Button>
+                      <button className="px-6 py-3 bg-cream/50 text-foreground font-bold rounded-xl border border-cream hover:bg-cream hover:border-yellow transition-all flex items-center">
+                        <Download className="w-5 h-5 mr-3" /> Download Resource
+                      </button>
                     </a>
                   </div>
                 )}
@@ -534,16 +517,18 @@ export default function CoursePage() {
             </TabsContent>
 
             <TabsContent value="notes">
-              <div className="mt-4 p-4 border rounded-xl bg-card">
-                <Button onClick={generateNotes} disabled={notesLoading}>
+              <div className="mt-4 p-8 border border-cream rounded-3xl bg-white shadow-sm">
+                <button 
+                  className={`px-6 py-3 font-bold rounded-xl shadow-sm transition-all flex items-center border-2 border-yellow text-yellow bg-white hover:bg-yellow/10`} 
+                  onClick={generateNotes} disabled={notesLoading}
+                >
                   {notesLoading ? (
-                    <LoaderCircle className="w-4 h-4 animate-spin" />
-                  ) : (
-                    "✨ Generate Notes"
-                  )}
-                </Button>
+                    <LoaderCircle className="w-5 h-5 animate-spin mr-3 text-current" />
+                  ) : null}
+                  {notesLoading ? "Generating..." : "✨ Ask AI to Generate Notes"}
+                </button>
                 {autoNotes && (
-                  <div className="mt-4 prose">
+                  <div className="mt-8 p-6 bg-cream/20 rounded-2xl border border-cream prose prose-slate max-w-none prose-headings:text-foreground prose-a:text-red">
                     <ReactMarkdown>{autoNotes}</ReactMarkdown>
                   </div>
                 )}
@@ -553,15 +538,11 @@ export default function CoursePage() {
         </div>
       </div>
 
-      {/* Sidebar */}
-      <div className="w-96 bg-card border-l overflow-y-auto p-6">
-        <h2 className="text-xl font-semibold mb-4">Course Content</h2>
+      {/* Sidebar Course Content */}
+      <div className="w-96 bg-white border-l border-cream shadow-sm overflow-y-auto px-6 py-8 rounded-tl-3xl custom-scrollbar hidden xl:block">
+        <h2 className="text-2xl font-bold mb-6 text-foreground tracking-tight px-2">Syllabus</h2>
 
         {sections.map((section, sIdx) => {
-          // FIX: derive lock state from DB moduleStatus at render time
-          // so it updates immediately when refreshModuleStatus() is called.
-          // Module 1 is always unlocked.
-          // Module N is unlocked only if module N-1's test is "completed" in DB.
           const isFirstModule = sIdx === 0;
           const prevSection   = sIdx > 0 ? sections[sIdx - 1] : null;
           const prevPassed    = prevSection
@@ -569,8 +550,10 @@ export default function CoursePage() {
             : false;
           const isLocked = !isFirstModule && !prevPassed;
 
+          const isActiveModule = section.lessons.some(l => l.id === activeLesson?.id);
+
           return (
-            <div key={section.id} className="border rounded-lg mb-2">
+            <div key={section.id} className={`border-2 rounded-2xl mb-4 transition-all overflow-hidden ${isActiveModule ? "border-red/30 shadow-sm" : "border-cream"}`}>
               <button
                 onClick={() =>
                   setSections((prev) =>
@@ -579,58 +562,66 @@ export default function CoursePage() {
                     )
                   )
                 }
-                className="w-full flex justify-between items-center p-4"
+                className={`w-full flex justify-between items-center p-5 transition-colors ${isActiveModule ? "bg-red/5" : "hover:bg-cream/30"}`}
               >
-                <div className="flex items-center gap-2">
-                  {isLocked && <Lock className="w-4 h-4 text-gray-400" />}
-                  <span className="font-semibold text-left">{section.title}</span>
+                <div className="flex items-center gap-3">
+                  {isLocked && <Lock className="w-5 h-5 text-foreground/30" />}
+                  <span className={`font-bold text-left ${isLocked ? "text-foreground/50" : "text-foreground"}`}>{section.title}</span>
                 </div>
-                {section.expanded ? <ChevronDown /> : <ChevronRight />}
+                {section.expanded ? <ChevronDown className="w-5 h-5 text-foreground/50" /> : <ChevronRight className="w-5 h-5 text-foreground/50" />}
               </button>
 
               {section.expanded && (
-                <div>
-                  {section.lessons.map((lesson) => (
-                    <button
-                      key={lesson.id}
-                      onClick={() =>
-                        lesson.status !== "locked" && setActiveLesson(lesson)
-                      }
-                      disabled={lesson.status === "locked"}
-                      className={`w-full flex items-center p-4 space-x-3 text-left ${
-                        activeLesson?.id === lesson.id ? "bg-primary/10" : ""
-                      } ${
-                        lesson.status === "locked"
-                          ? "opacity-50 cursor-not-allowed"
-                          : ""
-                      }`}
-                    >
-                      {iconFor(lesson)}
-                      <div className="flex-1">
-                        <p className="font-medium">{lesson.title}</p>
-                      </div>
-                    </button>
-                  ))}
+                <div className="bg-white pb-3 pt-1 border-t border-cream/50">
+                  {section.lessons.map((lesson) => {
+                      const isActivityActive = activeLesson?.id === lesson.id;
+                      return (
+                      <button
+                        key={lesson.id}
+                        onClick={() =>
+                          lesson.status !== "locked" && setActiveLesson(lesson)
+                        }
+                        disabled={lesson.status === "locked"}
+                        className={`w-full flex items-center px-6 py-3.5 space-x-4 text-left transition-colors relative ${
+                          isActivityActive ? "bg-cream/50" : "hover:bg-cream/20"
+                        } ${
+                          lesson.status === "locked"
+                            ? "opacity-50 cursor-not-allowed"
+                            : ""
+                        }`}
+                      >
+                        {isActivityActive && <div className="absolute left-0 top-0 h-full w-1 bg-red rounded-r-md"></div>}
+                        <div className="flex-shrink-0 bg-white shadow-xs p-1.5 rounded-lg border border-cream/50">
+                            {iconFor(lesson)}
+                        </div>
+                        <div className="flex-1">
+                          <p className={`font-medium text-sm ${isActivityActive ? "text-red font-bold" : "text-foreground/70"}`}>{lesson.title}</p>
+                        </div>
+                      </button>
+                    )
+                  })}
 
-                  {/* Take Test button — only after ALL videos in this module are done */}
+                  {/* Take Module Test */}
                   {isSectionCompleted(section) &&
                     moduleStatus[section.id] !== "completed" && (
-                      <button
-                        onClick={() =>
-                          navigate(
-                            `/assessment?module=${section.id}&domain=${domain}&level=${level}`
-                          )
-                        }
-                        className="w-full mt-3 mb-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                      >
-                        Take Module Test
-                      </button>
+                      <div className="px-5 mt-4 mb-3">
+                        <button
+                          onClick={() =>
+                            navigate(
+                              `/assessment?module=${section.id}&domain=${domain}&level=${level}`
+                            )
+                          }
+                          className="w-full py-3 bg-red text-white font-bold rounded-xl shadow-md hover:bg-red/90 transition-all hover:-translate-y-0.5 tracking-wide"
+                        >
+                          Take Module Test
+                        </button>
+                      </div>
                     )}
 
-                  {/* Show passed badge if module test is done */}
+                  {/* Passed Badge */}
                   {moduleStatus[section.id] === "completed" && (
-                    <div className="mx-4 mb-4 py-2 px-4 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm text-center">
-                      ✅ Module test passed
+                    <div className="mx-5 mb-3 mt-4 py-2 px-4 bg-green/10 border border-green/20 text-green font-bold uppercase tracking-wider rounded-xl text-xs text-center flex items-center justify-center gap-2">
+                       <CheckCircle2 className="w-4 h-4" /> Module test passed
                     </div>
                   )}
                 </div>
@@ -646,13 +637,12 @@ export default function CoursePage() {
                 `/assessment?final=true&domain=${domain}&level=${level}`
               )
             }
-            className="w-full mt-6 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition"
+            className="w-full mt-8 py-4 bg-red text-white font-black uppercase tracking-widest rounded-2xl shadow-lg hover:shadow-xl hover:bg-red/90 transition-all transform hover:-translate-y-1"
           >
             🏆 Take Final Test
           </button>
         )}
 
-        {/* Hidden refresh trigger — called after returning from assessment */}
         <button
           className="hidden"
           id="refresh-module-status"

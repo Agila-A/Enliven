@@ -4,16 +4,16 @@ import { Button } from "./ui/button";
 
 export default function Navbar({ onGetStarted, isLanding = false }) {
   return (
-    <nav className="w-full fixed top-0 left-0 bg-white/80 backdrop-blur-lg border-b border-gray-200 z-50">
+    <nav className="w-full fixed top-0 left-0 bg-cream/90 backdrop-blur-xl border-b border-white/20 z-50">
       {/* FULL WIDTH NAVBAR */}
       <div className="w-full px-6 py-4 flex items-center justify-between">
         
         {/* LOGO - ALWAYS LEFT */}
-        <a href="#" className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#6C6FF8] to-[#582B5B] grid place-items-center shadow-sm">
+        <a href="#" className="flex items-center gap-3 group">
+          <div className="w-10 h-10 rounded-xl bg-red grid place-items-center shadow-md group-hover:scale-105 transition-transform duration-300">
             <Sparkles className="w-5 h-5 text-white" />
           </div>
-          <span className="text-xl font-semibold bg-gradient-to-r from-[#6C6FF8] to-[#582B5B] bg-clip-text text-transparent">
+          <span className="text-2xl font-bold text-foreground">
             Enliven
           </span>
         </a>
@@ -23,21 +23,21 @@ export default function Navbar({ onGetStarted, isLanding = false }) {
           <div className="hidden md:flex items-center space-x-10">
             <a
               href="#features"
-              className="text-gray-800 hover:text-[#6C6FF8] transition-colors font-medium"
+              className="text-foreground/80 hover:text-red transition-colors font-semibold"
             >
               Features
             </a>
 
             <a
               href="#how-it-works"
-              className="text-gray-800 hover:text-[#6C6FF8] transition-colors font-medium"
+              className="text-foreground/80 hover:text-red transition-colors font-semibold"
             >
               How It Works
             </a>
 
             <a
               href="#about"
-              className="text-gray-800 hover:text-[#6C6FF8] transition-colors font-medium"
+              className="text-foreground/80 hover:text-red transition-colors font-semibold"
             >
               About
             </a>
@@ -47,7 +47,7 @@ export default function Navbar({ onGetStarted, isLanding = false }) {
             <input
               type="search"
               placeholder="Search courses, topics..."
-              className="w-full px-4 py-2 bg-gray-100 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#6C6FF8]"
+              className="w-full px-5 py-3 bg-white rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-red/50 focus:border-transparent transition-all shadow-sm placeholder-muted-foreground"
             />
           </div>
         )}
@@ -57,14 +57,14 @@ export default function Navbar({ onGetStarted, isLanding = false }) {
           {isLanding ? (
             <>
               {/* SIGN IN */}
-              <button className="hidden md:inline-flex text-gray-700 font-medium hover:text-[#6C6FF8]">
+              <button className="hidden md:inline-flex text-foreground/80 font-semibold hover:text-red transition-colors">
                 Sign In
               </button>
 
-              {/* FIXED BLUE BUTTON */}
+              {/* FIXED PRIMARY BUTTON */}
               <button
                 onClick={onGetStarted}
-                className="px-6 py-2 bg-enliven-primary text-white rounded-full font-semibold text-lg hover:bg-enliven-primary-dark transition"
+                className="px-6 py-2.5 bg-red text-white rounded-full font-semibold shadow-md hover:shadow-lg hover:bg-red/90 transition-all transform hover:-translate-y-0.5"
               >
                 Get Started
               </button>
@@ -72,14 +72,14 @@ export default function Navbar({ onGetStarted, isLanding = false }) {
           ) : (
             <>
               {/* DASHBOARD NOTIFICATIONS */}
-              <button className="p-2 hover:bg-gray-100 rounded-lg relative">
-                <Bell className="w-5 h-5 text-gray-700" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+              <button className="p-3 hover:bg-white rounded-xl relative transition-colors shadow-sm bg-white/50 border border-white/40">
+                <Bell className="w-5 h-5 text-foreground/80" />
+                <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-yellow rounded-full border-2 border-white"></span>
               </button>
 
               {/* USER ICON */}
-              <button className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-lg">
-                <div className="w-8 h-8 bg-gradient-to-br from-[#6C6FF8] to-[#582B5B] rounded-full flex items-center justify-center">
+              <button className="flex items-center justify-center p-1.5 hover:bg-white rounded-xl transition-colors shadow-sm bg-white/50 border border-white/40 group">
+                <div className="w-9 h-9 bg-green rounded-lg flex items-center justify-center group-hover:bg-green/90 transition-colors">
                   <User className="w-5 h-5 text-white" />
                 </div>
               </button>
