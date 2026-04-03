@@ -8,7 +8,7 @@ import { useNavigate } from "react-router-dom";
 export default function Dashboard() {
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
-  const [courseNav, setCourseNav] = useState(false); // loading state for "Continue Learning"
+  const [courseNav, setCourseNav] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -30,11 +30,7 @@ export default function Dashboard() {
     loadDashboard();
   }, []);
 
-  // BUG FIX: same fix as Sidebar — don't rely only on localStorage.
-  // After a fresh login, localStorage.roadmap is empty.
-  // Always fall back to the API so returning users go to the right course.
   const goToCourse = async () => {
-    // Fast path — if roadmap is cached in this session use it immediately
     const cached = localStorage.getItem("roadmap");
     if (cached) {
       try {
@@ -45,10 +41,9 @@ export default function Dashboard() {
           navigate(`/courses/${domain}/${level}`);
           return;
         }
-      } catch { /* corrupted cache, fall through */ }
+      } catch { }
     }
 
-    // API fallback
     setCourseNav(true);
     try {
       const token = localStorage.getItem("token");
@@ -75,35 +70,37 @@ export default function Dashboard() {
     }
   };
 
-  if (loading) return <p className="p-10">Loading Dashboard…</p>;
-  if (!data)   return <p className="p-10">Failed to load dashboard.</p>;
+  if (loading) return <div className="p-10 flex justify-center"><p className="text-foreground/70 font-medium">Loading Dashboard…</p></div>;
+  if (!data)   return <div className="p-10 flex justify-center"><p className="text-red font-medium">Failed to load dashboard.</p></div>;
 
   const { user, continueLearning } = data;
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-8 space-y-10 min-h-screen bg-cream/20 font-sans">
 
       {/* ── HEADER ── */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-bold mb-2">
+          <h1 className="text-4xl font-bold mb-2 text-foreground tracking-tight">
             Welcome back, {user.name}! 👋
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-foreground/70 text-lg">
             Ready to continue your learning journey?
           </p>
         </div>
 
         {/* Streak badge */}
-        <div className="bg-gradient-to-r from-orange-100 to-orange-200 rounded-xl px-4 py-3 flex items-center space-x-3">
-          <Flame className="w-6 h-6 text-orange-600" />
+        <div className="bg-yellow/10 border border-yellow/30 rounded-2xl px-6 py-4 flex items-center space-x-4 shadow-sm hover:shadow-soft transition-all">
+          <div className="bg-yellow/20 p-2 rounded-xl">
+             <Flame className="w-8 h-8 text-yellow" />
+          </div>
           <div>
-            <p className="text-xs text-orange-800 font-medium">Daily Streak</p>
-            <p className="text-2xl font-bold text-orange-900">
-              {user.streak ?? 0} {user.streak === 1 ? "Day" : "Days"}
+            <p className="text-sm text-yellow-800 font-semibold uppercase tracking-wider">Daily Streak</p>
+            <p className="text-3xl font-bold text-foreground">
+              {user.streak ?? 0} <span className="text-xl font-medium text-foreground/80">{user.streak === 1 ? "Day" : "Days"}</span>
             </p>
             {(user.longestStreak ?? 0) > 0 && (
-              <p className="text-xs text-orange-700">
+              <p className="text-xs text-foreground/60 mt-1 font-medium">
                 Best: {user.longestStreak} days
               </p>
             )}
@@ -112,82 +109,95 @@ export default function Dashboard() {
       </div>
 
       {/* ── PROFILE CARD + STATS ── */}
-      <div className="grid lg:grid-cols-4 gap-6">
-        <div className="lg:col-span-1 bg-gradient-to-br from-primary to-[#582B5B] rounded-xl p-6 text-white">
-          <div className="text-center">
-            <div className="w-24 h-24 bg-white/20 rounded-full mx-auto mb-4 flex items-center justify-center">
-              <span className="text-4xl">👨‍🎓</span>
+      <div className="grid lg:grid-cols-4 gap-8">
+        <div className="lg:col-span-1 bg-red rounded-3xl p-8 text-white shadow-md relative overflow-hidden group">
+          {/* Abstract background highlight */}
+           <div className="absolute top-[-20%] right-[-20%] w-[80%] h-[80%] bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-all"></div>
+           
+          <div className="text-center relative z-10">
+            <div className="w-28 h-28 bg-white/20 backdrop-blur-md rounded-full mx-auto mb-6 flex items-center justify-center border-4 border-white/30 shadow-inner">
+              <span className="text-5xl">👨‍🎓</span>
             </div>
-            <h3 className="text-xl font-semibold mb-1">{user.name}</h3>
-            <p className="text-white/80 text-sm mb-4">
+            <h3 className="text-2xl font-bold mb-2">{user.name}</h3>
+            <p className="text-white/80 font-medium mb-8 tracking-wider">
               {user.skillLevel?.toUpperCase() || "LEARNER"}
             </p>
-            <Button
-              variant="secondary"
-              className="w-full bg-white text-primary hover:bg-white/90"
+            <button
+              className="w-full py-3 bg-white text-red font-bold rounded-xl shadow-sm hover:shadow-md hover:bg-cream transition-all"
               onClick={() => navigate("/profile")}
             >
               View Profile
-            </Button>
+            </button>
           </div>
         </div>
 
-        <div className="lg:col-span-3 grid sm:grid-cols-3 gap-6">
-          <StatsCard title="Domain"       value={user.domain     || "Not Selected"} icon={BookOpen} />
-          <StatsCard title="Skill Level"  value={user.skillLevel || "Unknown"}      icon={BookOpen} />
-          <StatsCard title="Achievements" value={user.badges?.length ?? 0}          icon={Trophy} />
+        <div className="lg:col-span-3 grid sm:grid-cols-3 gap-8">
+          <StatsCard title="Domain"       value={user.domain     || "Not Selected"} icon={BookOpen} colorClass="text-green" bgClass="bg-green/10" borderClass="border-green/20" />
+          <StatsCard title="Skill Level"  value={user.skillLevel || "Unknown"}      icon={BookOpen} colorClass="text-yellow" bgClass="bg-yellow/10" borderClass="border-yellow/20" />
+          <StatsCard title="Achievements" value={user.badges?.length ?? 0}          icon={Trophy} colorClass="text-red" bgClass="bg-red/10" borderClass="border-red/20" />
         </div>
       </div>
 
       {/* ── CONTINUE LEARNING ── */}
       <div>
-        <h2 className="text-2xl font-semibold mb-4">Your Course</h2>
+        <h2 className="text-3xl font-bold mb-6 text-foreground">Your Course</h2>
 
         {!continueLearning ? (
-          // User hasn't set domain/skillLevel yet
-          <div className="bg-card rounded-xl border p-6 text-center">
-            <p className="text-muted-foreground mb-4">
+          <div className="bg-white rounded-3xl border border-cream p-10 text-center shadow-sm">
+            <div className="mx-auto w-20 h-20 bg-cream rounded-full flex items-center justify-center mb-6">
+               <BookOpen className="w-10 h-10 text-red/50" />
+            </div>
+            <p className="text-foreground/70 text-lg mb-8 max-w-lg mx-auto">
               You haven't started a course yet. Complete the assessment to get your personalized roadmap!
             </p>
-            <Button onClick={() => navigate("/assessment")}>
+            <button 
+              onClick={() => navigate("/assessment")}
+              className="px-8 py-3 bg-green text-white font-bold rounded-xl shadow-md hover:bg-green/90 transition-all"
+            >
               Start Assessment
-            </Button>
+            </button>
           </div>
         ) : (
-          <div className="bg-card rounded-xl border p-6">
-            <div className="flex items-center justify-between mb-4">
+          <div className="bg-white rounded-3xl border border-cream p-8 shadow-sm hover:shadow-soft transition-shadow">
+            <div className="flex items-start justify-between mb-8">
               <div>
-                <p className="text-sm text-primary font-semibold uppercase tracking-wide">
+                <p className="text-sm text-green font-bold uppercase tracking-widest mb-1">
                   {continueLearning.domain}
                 </p>
-                <h3 className="text-xl font-bold capitalize">
+                <h3 className="text-2xl font-bold capitalize text-foreground mb-2">
                   {continueLearning.skillLevel}
                 </h3>
-                <p className="text-muted-foreground text-sm mt-1">
+                <p className="text-foreground/60 font-medium">
                   {continueLearning.completed
                     ? "🎉 Course completed!"
                     : "Continue where you left off"}
                 </p>
               </div>
-              <Play className="w-10 h-10 text-primary" />
+              <div className="w-16 h-16 bg-cream rounded-2xl flex items-center justify-center shadow-sm">
+                <Play className="w-8 h-8 text-red" />
+              </div>
             </div>
 
-            <ProgressBar progress={continueLearning.progress ?? 0} />
+            <ProgressBar progress={continueLearning.progress ?? 0} colorClass="bg-green" />
 
-            <div className="flex items-center justify-between mt-4">
-              <p className="text-sm text-muted-foreground">
-                {continueLearning.completedLessons ?? 0} /{" "}
+            <div className="flex flex-col sm:flex-row items-center justify-between mt-8 gap-4">
+              <p className="text-base text-foreground/70 font-medium">
+                <span className="font-bold text-foreground">{continueLearning.completedLessons ?? 0}</span> /{" "}
                 {continueLearning.totalLessons ?? 0} lessons completed
                 {continueLearning.totalLessons === 0 && (
-                  <span className="ml-1 text-xs text-orange-500">
+                  <span className="block sm:inline sm:ml-2 text-sm text-yellow-600">
                     (start watching to track progress)
                   </span>
                 )}
               </p>
 
-              <Button onClick={goToCourse} disabled={courseNav}>
+              <button 
+                onClick={goToCourse} 
+                disabled={courseNav}
+                className="w-full sm:w-auto px-8 py-3 bg-red text-white font-bold rounded-xl shadow-md hover:bg-red/90 transition-all disabled:opacity-70 disabled:cursor-wait"
+              >
                 {courseNav ? "Loading…" : continueLearning.completed ? "Review Course" : "Continue Learning"}
-              </Button>
+              </button>
             </div>
           </div>
         )}

@@ -467,134 +467,125 @@ export default function AssessmentPage() {
       autoPlay
       muted
       playsInline
-      style={{
-        // Always rendered. Hidden when not in taking/ready phase,
-        // but NEVER unmounted so srcObject is preserved.
-        display: (phase === "taking" || phase === "ready") ? "block" : "none",
-        width: "100%",
-        height: "100%",
-        objectFit: "cover",
-        borderRadius: 12,
-        background: "#000",
-      }}
+      className={`w-full h-full object-cover rounded-xl bg-black ${(phase === "taking" || phase === "ready") ? "block" : "hidden"}`}
     />
   );
 
   /* ── PERMISSION SCREEN ── */
   if (phase === "permission") return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-6">
+    <div className="min-h-screen bg-cream/20 flex flex-col items-center justify-center p-6 font-sans relative overflow-hidden">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-red/10 rounded-full blur-[80px] pointer-events-none"></div>
+
       {/* Video in DOM but hidden */}
-      <div style={{ position: "absolute", opacity: 0, pointerEvents: "none", width: 1, height: 1, overflow: "hidden" }}>
+      <div className="absolute opacity-0 pointer-events-none w-1 h-1 overflow-hidden">
         {PersistentVideo}
       </div>
 
-      <div className="bg-card border border-border rounded-2xl shadow-xl max-w-md w-full p-8 flex flex-col items-center gap-5">
-        <div className="w-16 h-16 rounded-full flex items-center justify-center"
-          style={{ background: "var(--enliven-deep-purple, #2B124C)" }}>
-          <ShieldCheck className="w-8 h-8 text-white" />
+      <div className="bg-white border border-cream rounded-3xl shadow-soft max-w-lg w-full p-10 flex flex-col items-center gap-6 relative z-10">
+        <div className="w-20 h-20 rounded-full flex items-center justify-center bg-red/10 animate-pulse">
+          <ShieldCheck className="w-10 h-10 text-red" />
         </div>
 
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-foreground">Proctored Assessment</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="text-3xl font-bold text-foreground">Proctored Assessment</h1>
+          <p className="text-sm font-bold text-foreground/60 mt-2 uppercase tracking-wide">
             {isFinal ? "Final Exam" : `Module ${moduleId}`} · {domain} · {level}
           </p>
         </div>
 
-        <div className="w-full bg-secondary rounded-xl p-4 space-y-3 text-sm">
-          <p className="font-semibold text-foreground">This exam monitors:</p>
-          {[
-            { icon: <Camera className="w-4 h-4"/>,     text: "Webcam — face presence & position" },
-            { icon: <Eye className="w-4 h-4"/>,        text: "Head direction — looking away alerts" },
-            { icon: <Users className="w-4 h-4"/>,      text: "Multiple people in frame" },
-            { icon: <MonitorOff className="w-4 h-4"/>, text: "Tab switches" },
-          ].map((item, i) => (
-            <div key={i} className="flex items-center gap-3 text-muted-foreground">
-              <span style={{ color: "var(--enliven-purple, #582B5B)" }}>{item.icon}</span>
-              {item.text}
-            </div>
-          ))}
+        <div className="w-full bg-cream/30 rounded-2xl p-5 border border-cream/50 space-y-4 text-sm mt-2">
+          <p className="font-bold text-foreground text-center">This exam monitors:</p>
+          <div className="space-y-3">
+              {[
+                { icon: <Camera className="w-5 h-5 text-red"/>,     text: "Webcam — face presence & position" },
+                { icon: <Eye className="w-5 h-5 text-yellow"/>,        text: "Head direction — looking away alerts" },
+                { icon: <Users className="w-5 h-5 text-green"/>,      text: "Multiple people in frame" },
+                { icon: <MonitorOff className="w-5 h-5 text-foreground/60"/>, text: "Tab switches" },
+              ].map((item, i) => (
+                <div key={i} className="flex items-center gap-4 text-foreground/70 font-medium bg-white p-3 rounded-xl border border-cream shadow-xs">
+                  {item.icon}
+                  {item.text}
+                </div>
+              ))}
+          </div>
         </div>
 
-        <div className="w-full bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
-          <strong>Warning system:</strong> You'll receive 2 warnings before each type of issue counts as a violation. After {MAX_VIOLATIONS} violations the test is auto-submitted.
+        <div className="w-full bg-yellow/10 border border-yellow/20 rounded-xl px-5 py-4 text-sm text-yellow-800 font-medium">
+          <strong>Warning system:</strong> You'll receive {WARN_BEFORE} warnings before each type of issue counts as a violation. After {MAX_VIOLATIONS} violations the test is <strong className="text-red">auto-submitted</strong>.
         </div>
 
-        <p className="text-xs text-center font-semibold text-destructive">
-          Camera access is required — you cannot proceed without it.
+        <p className="text-sm text-center font-bold text-red uppercase tracking-wider">
+          Camera access is required
         </p>
 
         {camError && (
-          <div className="w-full bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+          <div className="w-full bg-red/10 border border-red/20 rounded-xl px-5 py-4 text-sm text-red font-bold flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
             {camError}
           </div>
         )}
 
-        <Button
-          className="w-full h-11 text-base font-semibold text-white"
-          style={{ background: "var(--enliven-deep-purple, #2B124C)" }}
+        <button
+          className="w-full py-4 mt-2 font-bold text-lg text-white bg-red rounded-xl shadow-md hover:shadow-lg hover:bg-red/90 transition-all transform hover:-translate-y-0.5"
           onClick={requestCamera}
         >
           Allow Camera & Continue
-        </Button>
+        </button>
       </div>
     </div>
   );
 
   /* ── LOADING ── */
   if (phase === "loading") return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-5">
-      <div style={{ position: "absolute", opacity: 0, pointerEvents: "none", width: 1, height: 1, overflow: "hidden" }}>
+    <div className="min-h-screen bg-cream/20 flex flex-col items-center justify-center gap-6 font-sans">
+      <div className="absolute opacity-0 pointer-events-none w-1 h-1 overflow-hidden">
         {PersistentVideo}
       </div>
-      <div className="w-12 h-12 border-4 border-border rounded-full animate-spin"
-        style={{ borderTopColor: "var(--enliven-purple, #582B5B)" }} />
+      <div className="w-16 h-16 border-4 border-cream rounded-full animate-spin border-t-red" />
       <div className="text-center">
-        <p className="text-foreground font-semibold">
+        <p className="text-xl font-bold text-foreground">
           {modelsReady ? "Generating your questions…" : "Loading AI proctoring models…"}
         </p>
-        <p className="text-muted-foreground text-sm mt-1">This may take a few seconds</p>
+        <p className="text-foreground/60 font-medium text-sm mt-2">This may take a few seconds</p>
       </div>
     </div>
   );
 
   /* ── READY ── */
   if (phase === "ready") return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-6">
-      <div className="bg-card border border-border rounded-2xl shadow-xl max-w-md w-full p-8 flex flex-col items-center gap-5">
-        <h2 className="text-xl font-bold text-foreground">Ready to Begin?</h2>
+    <div className="min-h-screen bg-cream/20 flex items-center justify-center p-6 font-sans">
+      <div className="bg-white border border-cream rounded-3xl shadow-soft max-w-lg w-full p-8 flex flex-col items-center gap-6 relative z-10">
+        <h2 className="text-3xl font-bold text-foreground">Ready to Begin?</h2>
 
-        {/* FIX 1: PersistentVideo shown here — stream already active */}
-        <div className="w-full rounded-2xl overflow-hidden border border-border aspect-video bg-black">
+        <div className="w-full rounded-2xl overflow-hidden border-4 border-cream/50 shadow-inner bg-black aspect-video relative group">
           {PersistentVideo}
+          <div className="absolute inset-0 border-4 border-green/50 rounded-xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity"></div>
         </div>
 
-        <div className="flex items-center gap-2 text-sm font-medium" style={{ color: "#10b981" }}>
-          <CheckCircle2 className="w-4 h-4" />
+        <div className="flex items-center gap-2 text-sm font-bold text-green bg-green/10 px-4 py-2 rounded-full">
+          <CheckCircle2 className="w-5 h-5" />
           Camera active — face detection ready
         </div>
 
-        <div className="w-full bg-secondary rounded-xl p-4 grid grid-cols-3 gap-3 text-center">
+        <div className="w-full bg-cream/30 rounded-2xl p-5 border border-cream/50 grid grid-cols-3 gap-2 text-center text-sm md:text-base">
           {[
             { val: questions.length,           label: "Questions" },
             { val: fmt(timeLeft),              label: "Time Limit" },
-            { val: `${WARN_BEFORE} warnings`,  label: "Before Violation" },
+            { val: `${WARN_BEFORE} warnings`,  label: "Allowed" },
           ].map(({ val, label }) => (
-            <div key={label}>
-              <p className="font-bold text-foreground text-lg">{val}</p>
-              <p className="text-muted-foreground text-xs">{label}</p>
+            <div key={label} className="bg-white p-3 rounded-xl border border-cream shadow-xs">
+              <p className="font-bold text-foreground text-xl">{val}</p>
+              <p className="text-foreground/50 text-[10px] sm:text-xs font-bold uppercase tracking-wider mt-1">{label}</p>
             </div>
           ))}
         </div>
 
-        <Button
-          className="w-full h-11 font-semibold text-base text-white"
-          style={{ background: "var(--enliven-deep-purple, #2B124C)" }}
+        <button
+          className="w-full py-4 text-lg font-bold text-white bg-red rounded-xl shadow-md hover:shadow-lg hover:bg-red/90 transition-all transform hover:-translate-y-0.5 mt-2"
           onClick={() => { startedAt.current = new Date(); setPhase("taking"); }}
         >
           Start Assessment
-        </Button>
+        </button>
       </div>
     </div>
   );
@@ -603,72 +594,73 @@ export default function AssessmentPage() {
   if (phase === "submitted" && result) {
     const { score, passed, flagged, correct, total, violations: v } = result;
     return (
-      <div className="min-h-screen bg-background p-6">
+      <div className="min-h-screen bg-cream/20 font-sans p-6 overflow-hidden relative flex flex-col items-center py-16">
         {showPopup && earnedBadge && (
           <BadgePopup badge={earnedBadge}
             onClose={() => setShowPopup(false)}
             onCollect={() => { setShowPopup(false); navigate("/profile"); }}
           />
         )}
+        
+        {/* Background Blobs */}
+        <div className={`absolute top-[0%] left-[10%] w-[30%] h-[30%] rounded-full blur-[100px] pointer-events-none ${passed ? "bg-green/10" : "bg-red/10"}`}></div>
 
-        <div className="max-w-2xl mx-auto space-y-5">
+        <div className="max-w-3xl w-full mx-auto space-y-6 relative z-10">
           {/* Score card */}
-          <div className="bg-card border border-border rounded-2xl p-8 text-center space-y-4 shadow-lg">
-            <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto"
-              style={{ background: passed ? "#10b981" : "#ef4444" }}>
+          <div className="bg-white border border-cream rounded-[2.5rem] p-10 text-center shadow-soft">
+            <div className={`w-28 h-28 rounded-full flex items-center justify-center mx-auto shadow-md mb-6 ${passed ? "bg-green" : "bg-red"}`}>
               {passed
-                ? <CheckCircle2 className="w-10 h-10 text-white" />
-                : <XCircle      className="w-10 h-10 text-white" />}
+                ? <CheckCircle2 className="w-14 h-14 text-white" />
+                : <XCircle      className="w-14 h-14 text-white" />}
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-foreground">
+              <h1 className="text-4xl font-bold text-foreground mb-2">
                 {passed ? (isFinal ? "Course Complete! 🎉" : "Test Passed! ⭐") : "Test Failed"}
               </h1>
-              <p className="text-muted-foreground text-sm mt-1">
+              <p className="text-foreground/60 font-medium text-lg">
                 {passed
                   ? isFinal ? "You've mastered this course!" : "Next module is now unlocked."
                   : "You need 60% to pass. Review the module and try again."}
               </p>
             </div>
-            <p className="text-6xl font-extrabold"
-              style={{ color: passed ? "#10b981" : "#ef4444" }}>
+            <p className={`text-[6rem] font-black my-4 leading-none tracking-tighter ${passed ? "text-green" : "text-red"}`}>
               {score}%
             </p>
-            <p className="text-muted-foreground">{correct} / {total} correct</p>
+            <p className="text-foreground/50 font-bold uppercase tracking-widest text-sm">{correct} / {total} correct</p>
           </div>
 
           {/* Proctoring report */}
-          <div className="bg-card border border-border rounded-2xl p-5 space-y-3 shadow-sm">
-            <h2 className="font-semibold text-foreground flex items-center gap-2 text-sm">
-              <ShieldCheck className="w-4 h-4" style={{ color: "var(--enliven-purple, #582B5B)" }} />
+          <div className="bg-white border border-cream rounded-[2rem] p-8 shadow-sm">
+            <h2 className="font-bold text-xl text-foreground flex items-center gap-3 mb-6">
+              <ShieldCheck className="w-6 h-6 text-foreground/40" />
               Proctoring Report
             </h2>
             {flagged && (
-              <div className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-red-50 text-red-700 border border-red-200">
-                <AlertTriangle className="w-4 h-4 shrink-0" />
-                This attempt has been flagged for review.
+              <div className="flex items-center gap-3 text-sm px-4 py-3 rounded-xl bg-red/10 text-red font-bold mb-6">
+                <AlertTriangle className="w-6 h-6 shrink-0" />
+                This attempt has been flagged for review due to policy violations.
               </div>
             )}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {[
                 { label: "Tab Switches",      val: v.tabSwitches,     icon: "🪟" },
-                { label: "Face Not Detected", val: v.faceNotDetected, icon: "👤" },
+                { label: "Face Not Found", val: v.faceNotDetected, icon: "👤" },
                 { label: "Multiple Faces",    val: v.multipleFaces,   icon: "👥" },
                 { label: "Looking Away",      val: v.lookingAway,     icon: "👀" },
-                { label: "Expression Alerts", val: v.expressionAlert, icon: "😟" },
+                { label: "Expr. Alerts", val: v.expressionAlert, icon: "😟" },
               ].map(({ label, val, icon }) => (
-                <div key={label} className="bg-secondary rounded-xl p-3 text-center">
-                  <p className="text-base mb-0.5">{icon}</p>
-                  <p className="text-xl font-bold text-foreground">{val}</p>
-                  <p className="text-xs text-muted-foreground">{label}</p>
+                <div key={label} className="bg-cream/30 rounded-2xl p-4 text-center border border-cream">
+                  <p className="text-2xl mb-2 opacity-80">{icon}</p>
+                  <p className={`text-2xl font-black ${val > 0 ? "text-red" : "text-foreground"}`}>{val}</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-foreground/50 mt-1">{label}</p>
                 </div>
               ))}
             </div>
           </div>
 
           {/* Actions */}
-          <div className="flex gap-3">
-            <Button variant="outline" className="flex-1 h-11"
+          <div className="flex flex-col sm:flex-row gap-4 mt-8">
+            <button className="flex-1 py-4 font-bold rounded-xl border-2 border-foreground/20 text-foreground/70 hover:bg-cream/50 transition-all flex items-center justify-center"
               onClick={() => {
                 vRef.current = { tabSwitches:0, faceNotDetected:0, multipleFaces:0, lookingAway:0, expressionAlert:0, noCamera:false };
                 warnRef.current = { faceNotDetected:0, lookingAway:0, multipleFaces:0 };
@@ -676,22 +668,20 @@ export default function AssessmentPage() {
                 setSelectedAnswers(Array(questions.length).fill(null));
                 setCurrentQ(0); setViolationCount(0); setResult(null); setPhase("permission");
               }}>
-              <RotateCcw className="mr-2 w-4 h-4" /> Retake Test
-            </Button>
+              <RotateCcw className="mr-3 w-5 h-5" /> Retake Test
+            </button>
 
             {passed && (
               isFinal ? (
-                <Button className="flex-1 h-11 font-semibold text-white"
-                  style={{ background: "var(--enliven-deep-purple, #2B124C)" }}
+                <button className="flex-1 py-4 font-bold text-white bg-red rounded-xl shadow-md hover:shadow-lg hover:bg-red/90 transition-all transform hover:-translate-y-0.5 flex items-center justify-center"
                   onClick={() => earnedBadge ? setShowPopup(true) : navigate("/dashboard")}>
                   🎖️ {earnedBadge ? "View Badge" : "Go to Dashboard"}
-                </Button>
+                </button>
               ) : (
-                <Button className="flex-1 h-11 font-semibold text-white"
-                  style={{ background: "var(--enliven-deep-purple, #2B124C)" }}
+                <button className="flex-1 py-4 font-bold text-white bg-red rounded-xl shadow-md hover:shadow-lg hover:bg-red/90 transition-all transform hover:-translate-y-0.5 flex items-center justify-center"
                   onClick={() => navigate(`/courses/${domain}/${level}`)}>
-                  Continue Learning →
-                </Button>
+                  Continue Learning <ChevronRight className="ml-2 w-5 h-5"/>
+                </button>
               )
             )}
           </div>
@@ -704,75 +694,82 @@ export default function AssessmentPage() {
      TAKING EXAM
   ══════════════════════════════════════════════════════════ */
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-cream/20 font-sans flex flex-col">
 
       {/* ── Top bar ── */}
-      <div className="sticky top-0 z-20 bg-card border-b border-border px-6 py-3 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-3">
-          <ShieldCheck className="w-5 h-5" style={{ color: "var(--enliven-purple, #582B5B)" }} />
-          <span className="font-semibold text-foreground text-sm">
-            {isFinal ? "Final Exam" : `Module ${moduleId} Assessment`}
-          </span>
-          <span className="text-muted-foreground text-xs hidden sm:inline">· {domain} · {level}</span>
-        </div>
+      <div className="sticky top-0 z-30 bg-white border-b border-cream px-6 py-4 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-4">
-          <span className="text-sm text-muted-foreground hidden sm:inline">
+          <div className="bg-red/10 p-2 rounded-lg">
+             <ShieldCheck className="w-6 h-6 text-red" />
+          </div>
+          <div>
+            <span className="font-bold text-foreground text-lg hidden sm:block">
+              {isFinal ? "Final Exam" : `Module ${moduleId} Assessment`}
+            </span>
+            <span className="text-foreground/50 text-xs font-bold uppercase tracking-wider">
+              {domain} · {level}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-6">
+          <span className="text-sm font-bold text-foreground/50 uppercase tracking-widest hidden sm:inline bg-cream/50 px-3 py-1.5 rounded-lg">
             {answeredCount}/{questions.length} answered
           </span>
-          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold tabular-nums ${
-            isUrgent ? "bg-red-50 text-red-600 border border-red-200" : "bg-secondary text-foreground"}`}>
-            <Clock className="w-3.5 h-3.5" />
+          <div className={`flex items-center gap-2 px-4 py-2 rounded-xl text-base font-bold tabular-nums shadow-inner border ${
+            isUrgent ? "bg-red/10 text-red border-red/20 shadow-red/10 animate-pulse" : "bg-white text-foreground border-cream shadow-cream/50"}`}>
+            <Clock className="w-5 h-5" />
             {fmt(timeLeft)}
           </div>
         </div>
       </div>
 
       {/* Progress bar */}
-      <div className="h-1 bg-secondary">
-        <div className="h-full transition-all duration-500"
-          style={{ width: `${examProgress}%`, background: "var(--enliven-purple, #582B5B)" }} />
+      <div className="h-1.5 bg-cream/50 w-full">
+        <div className={`h-full transition-all duration-500 rounded-r-full ${isUrgent ? 'bg-red' : 'bg-green'}`}
+          style={{ width: `${examProgress}%` }} />
       </div>
 
       {/* ── Violation / Warning Banner ── */}
       {violationBanner && (
-        <div className={`px-6 py-3 text-sm font-semibold flex items-center gap-3 border-b transition-all ${
+        <div className={`px-6 py-4 text-sm font-bold flex items-center gap-4 border-b transition-all ${
           violationBanner.type === "violation"
-            ? "bg-red-100 border-red-300 text-red-800"
-            : "bg-amber-50 border-amber-200 text-amber-800"
+            ? "bg-red/10 border-red/20 text-red"
+            : "bg-yellow/10 border-yellow/20 text-yellow-700" 
         }`}>
-          <AlertTriangle className={`w-5 h-5 shrink-0 ${
-            violationBanner.type === "violation" ? "text-red-600" : "text-amber-600"}`} />
-          <span className="flex-1">{violationBanner.text}</span>
-          <span className="text-xs font-medium opacity-70 shrink-0">
+          <AlertTriangle className="w-6 h-6 shrink-0" />
+          <span className="flex-1 text-base">{violationBanner.text}</span>
+          <span className="text-xs font-black opacity-80 shrink-0 uppercase tracking-widest bg-white/50 px-2 py-1 rounded">
             {violationCount}/{MAX_VIOLATIONS} violations
           </span>
         </div>
       )}
 
-      <div className="max-w-5xl mx-auto p-6 grid lg:grid-cols-[1fr,280px] gap-6">
+      <div className="flex-1 w-full max-w-7xl mx-auto p-4 md:p-8 grid lg:grid-cols-[1fr,320px] gap-8">
 
         {/* ── LEFT: Question panel ── */}
-        <div className="space-y-5">
-          {/* Question label */}
-          <div className="flex items-center gap-3">
-            <span className="px-3 py-1.5 rounded-full text-xs font-semibold text-white"
-              style={{ background: "var(--enliven-purple, #582B5B)" }}>
-              Question {currentQ + 1} of {questions.length}
-            </span>
-            {questions[currentQ]?.difficulty && (
-              <span className="text-xs text-muted-foreground">
-                {"★".repeat(questions[currentQ].difficulty)}
-                {"☆".repeat(5 - questions[currentQ].difficulty)}
-              </span>
-            )}
+        <div className="space-y-6 flex flex-col h-full">
+          
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+                <span className="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest text-red bg-red/10 border border-red/20">
+                Question {currentQ + 1} of {questions.length}
+                </span>
+                {questions[currentQ]?.difficulty && (
+                <span className="text-xs font-bold text-yellow flex items-center bg-yellow/10 px-2 py-1 rounded-lg">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                        <span key={i} className={i < questions[currentQ].difficulty ? "text-yellow" : "text-yellow/30"}>★</span>
+                    ))}
+                </span>
+                )}
+            </div>
           </div>
 
           {/* Question card */}
-          <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
-            <p className="text-foreground text-lg font-medium leading-relaxed mb-6">
+          <div className="bg-white border border-cream rounded-[2rem] p-8 md:p-10 shadow-sm flex-1 flex flex-col">
+            <h2 className="text-2xl font-bold leading-relaxed mb-8 text-foreground">
               {questions[currentQ]?.question}
-            </p>
-            <div className="space-y-3">
+            </h2>
+            <div className="space-y-4 mt-auto">
               {questions[currentQ]?.options.map((opt, i) => {
                 const sel = selectedAnswers[currentQ] === i;
                 return (
@@ -782,21 +779,18 @@ export default function AssessmentPage() {
                       a[currentQ] = i;
                       setSelectedAnswers(a);
                     }}
-                    className="w-full text-left flex items-start gap-4 p-4 rounded-xl border transition-all duration-150"
-                    style={{
-                      borderColor: sel ? "var(--enliven-purple, #582B5B)" : "var(--border)",
-                      background:  sel ? "rgba(88,43,91,0.07)" : "var(--card)",
-                      color: "var(--foreground)",
-                    }}
+                    className={`w-full text-left flex items-start gap-5 p-5 rounded-2xl border-2 transition-all duration-300 transform ${
+                        sel 
+                        ? "-translate-y-1 bg-red/5 border-red shadow-md"
+                        : "border-cream bg-white hover:bg-cream/30 hover:border-red/30 hover:-translate-y-0.5"
+                    }`}
                   >
-                    <span className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
-                      style={{
-                        background: sel ? "var(--enliven-purple, #582B5B)" : "var(--secondary)",
-                        color: sel ? "#fff" : "var(--muted-foreground)",
-                      }}>
+                    <span className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-sm font-black shadow-inner transition-colors ${
+                        sel ? "bg-red text-white" : "bg-cream text-foreground/50 border border-cream/80"
+                    }`}>
                       {["A","B","C","D"][i]}
                     </span>
-                    <span className="text-sm leading-relaxed pt-0.5">{opt}</span>
+                    <span className={`text-lg font-medium leading-relaxed pt-1 transition-colors ${sel ? "text-foreground" : "text-foreground/80"}`}>{opt}</span>
                   </button>
                 );
               })}
@@ -804,124 +798,121 @@ export default function AssessmentPage() {
           </div>
 
           {/* Navigation */}
-          <div className="flex justify-between items-center">
-            <Button variant="outline" disabled={currentQ === 0}
+          <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-cream shadow-sm">
+            <button disabled={currentQ === 0}
+              className="px-6 py-3 font-bold text-foreground/70 rounded-xl hover:bg-cream/50 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center"
               onClick={() => setCurrentQ(q => q - 1)}>
-              ← Previous
-            </Button>
+              <ChevronRight className="mr-2 w-5 h-5 rotate-180"/> Previous
+            </button>
             {currentQ < questions.length - 1 ? (
-              <Button style={{ background:"var(--enliven-deep-purple,#2B124C)", color:"#fff" }}
+               <button className="px-8 py-3 font-bold text-white bg-red rounded-xl hover:bg-red/90 shadow-md hover:shadow-lg transition-all flex items-center"
                 onClick={() => setCurrentQ(q => q + 1)}>
-                Next <ChevronRight className="ml-1 w-4 h-4"/>
-              </Button>
+                Next <ChevronRight className="ml-2 w-5 h-5"/>
+              </button>
             ) : (
-              <Button style={{ background:"#10b981", color:"#fff" }}
+                <button className="px-8 py-3 font-bold text-white bg-green rounded-xl hover:bg-green/90 shadow-md hover:shadow-lg transition-all"
                 onClick={handleSubmit} disabled={saving}>
                 {saving ? "Submitting…" : "Submit Assessment"}
-              </Button>
+              </button>
             )}
           </div>
+        </div>
+
+        {/* ── RIGHT: Proctoring sidebar ── */}
+        <div className="space-y-6 lg:border-l lg:border-cream lg:pl-8 flex flex-col">
 
           {/* Question grid navigator */}
-          <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
-            <p className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wide">
-              Question Navigator
-            </p>
-            <div className="flex flex-wrap gap-2">
+          <div className="bg-white border border-cream rounded-[1.5rem] p-6 shadow-sm">
+             <div className="flex items-center gap-2 mb-4">
+                 <div className="w-8 h-8 rounded-full bg-cream/50 flex flex-col items-center justify-center gap-0.5">
+                     <div className="w-1 h-1 bg-foreground/40 rounded-full"></div>
+                     <div className="w-1 h-1 bg-foreground/40 rounded-full"></div>
+                     <div className="w-1 h-1 bg-foreground/40 rounded-full"></div>
+                 </div>
+                <h3 className="font-bold text-foreground">Navigator</h3>
+             </div>
+            <div className="grid grid-cols-5 gap-2">
               {questions.map((_, i) => {
                 const ans = selectedAnswers[i] !== null;
                 const cur = i === currentQ;
                 return (
                   <button key={i} onClick={() => setCurrentQ(i)}
-                    className="w-9 h-9 rounded-lg text-xs font-semibold transition-all"
-                    style={{
-                      background: cur ? "var(--enliven-purple,#582B5B)" : ans ? "rgba(88,43,91,0.12)" : "var(--secondary)",
-                      color:      cur ? "#fff" : ans ? "var(--enliven-purple,#582B5B)" : "var(--muted-foreground)",
-                      border:     cur ? "2px solid var(--enliven-purple,#582B5B)" : ans ? "2px solid rgba(88,43,91,0.3)" : "2px solid transparent",
-                    }}>
+                    className={`w-full aspect-square rounded-xl text-sm font-bold transition-all flex items-center justify-center border-2 ${
+                        cur ? "bg-red text-white border-red shadow-md transform scale-105" :
+                        ans ? "bg-red/10 text-red border-red/20" :
+                        "bg-cream/30 text-foreground/40 border-cream/50 hover:bg-cream"
+                    }`}
+                  >
                     {i + 1}
                   </button>
                 );
               })}
             </div>
           </div>
-        </div>
 
-        {/* ── RIGHT: Proctoring sidebar ── */}
-        <div className="space-y-4">
+          {/* Webcam card */}
+          <div className="bg-white border border-cream rounded-[1.5rem] p-6 shadow-sm">
+            <h3 className="text-base font-bold flex items-center gap-3 text-foreground mb-4">
+              <Camera className="w-5 h-5 text-red"/>
+              Proctoring Cam
+            </h3>
+            <div className="relative rounded-2xl overflow-hidden border-4 border-cream/50 shadow-inner bg-black">
+              {PersistentVideo}
+              {/* Live indicator dot */}
+              <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm rounded-full px-2.5 py-1">
+                <span className="w-2 h-2 rounded-full bg-red animate-pulse shadow-[0_0_8px_rgba(197,79,45,0.8)]" />
+                <span className="text-white text-[10px] font-black tracking-widest uppercase">LIVE</span>
+              </div>
+            </div>
+          </div>
 
           {/* Status card */}
-          <div className="bg-card border border-border rounded-2xl p-4 shadow-sm">
-            <h3 className="text-sm font-semibold flex items-center gap-2 text-foreground mb-3">
-              <ShieldCheck className="w-4 h-4" style={{ color: "var(--enliven-purple,#582B5B)" }}/>
-              Proctoring Status
-            </h3>
-
-            <div className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg mb-3"
+          <div className="bg-white border border-cream rounded-[1.5rem] p-6 shadow-sm">
+             <div className="flex items-center gap-3 px-4 py-3 rounded-xl mb-6 font-bold text-sm border shadow-inner transition-colors"
               style={{
-                background: proctorStatus === "active" ? "rgba(16,185,129,0.08)" : "rgba(239,68,68,0.08)",
-                color:      proctorStatus === "active" ? "#10b981" : "#ef4444",
-                border: `1px solid ${proctorStatus === "active" ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)"}`,
+                background: proctorStatus === "active" ? "rgba(148,179,138,0.15)" : "rgba(197,79,45,0.15)",
+                color:      proctorStatus === "active" ? "#94B38A" : "#C54F2D",
+                borderColor: proctorStatus === "active" ? "rgba(148,179,138,0.3)" : "rgba(197,79,45,0.3)",
               }}>
-              <span className="w-2 h-2 rounded-full animate-pulse"
-                style={{ background: proctorStatus === "active" ? "#10b981" : "#ef4444" }} />
-              {proctorStatus === "active" ? "Camera active · AI monitoring" : "Camera not available"}
+              <span className="w-3 h-3 rounded-full animate-pulse shadow-sm"
+                style={{ background: proctorStatus === "active" ? "#94B38A" : "#C54F2D" }} />
+              {proctorStatus === "active" ? "AI Monitoring Active" : "Camera Initializing..."}
             </div>
 
             {/* Violation meter */}
-            <div className="space-y-1.5">
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Violations</span>
-                <span className="font-semibold text-foreground">{violationCount} / {MAX_VIOLATIONS}</span>
+            <div className="space-y-3 bg-cream/20 p-4 rounded-xl border border-cream/50">
+              <div className="flex justify-between items-center text-sm font-bold">
+                <span className="text-foreground/70 uppercase tracking-widest text-[10px]">Violations</span>
+                <span className={`px-2 py-0.5 rounded-md ${violationCount > 0 ? "bg-red text-white" : "text-foreground"}`}>
+                    {violationCount} / {MAX_VIOLATIONS}
+                </span>
               </div>
-              <div className="h-2.5 bg-secondary rounded-full overflow-hidden">
-                <div className="h-full rounded-full transition-all duration-500"
+              <div className="h-3 bg-cream rounded-full overflow-hidden shadow-inner">
+                <div className="h-full rounded-full transition-all duration-500 ease-out"
                   style={{
                     width: `${Math.min((violationCount / MAX_VIOLATIONS) * 100, 100)}%`,
-                    background: violationCount >= 4 ? "#ef4444"
-                              : violationCount >= 2 ? "#f59e0b"
-                              : "#10b981",
+                    background: violationCount >= 4 ? "#C54F2D" // red
+                              : violationCount >= 2 ? "#EEBF43" // yellow
+                              : "#94B38A", // green
                   }} />
               </div>
-              <p className="text-[10px] text-muted-foreground">
+               <p className="text-[11px] font-bold text-foreground/50 text-center uppercase tracking-wider">
                 {MAX_VIOLATIONS - violationCount > 0
                   ? `${MAX_VIOLATIONS - violationCount} more before auto-submit`
                   : "Auto-submitting…"}
               </p>
             </div>
           </div>
+          
+           {/* Submit button bottom sidebar */}
+            <button className="w-full mt-auto py-5 font-bold text-lg text-white bg-green rounded-xl shadow-md hover:shadow-lg hover:bg-green/90 transition-all focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-0.5"
+                onClick={handleSubmit} disabled={saving || answeredCount < questions.length}>
+                {saving ? "Submitting…" 
+                : answeredCount < questions.length 
+                ? `${questions.length - answeredCount} unanswered` 
+                : "Submit Exam →"}
+            </button>
 
-          {/* Webcam card — FIX 1: PersistentVideo used here */}
-          <div className="bg-card border border-border rounded-2xl p-4 shadow-sm">
-            <h3 className="text-sm font-semibold flex items-center gap-2 text-foreground mb-3">
-              <Camera className="w-4 h-4" style={{ color: "var(--enliven-purple,#582B5B)" }}/>
-              Webcam
-            </h3>
-            <div className="aspect-video bg-black rounded-xl overflow-hidden relative">
-              {PersistentVideo}
-              {/* Live indicator dot */}
-              <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/60 rounded-full px-2 py-1">
-                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                <span className="text-white text-[10px] font-semibold">LIVE</span>
-              </div>
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-2 text-center">
-              Keep your face visible · Look straight at screen
-            </p>
-          </div>
-
-          {/* Submit button */}
-          <Button
-            className="w-full h-11 font-semibold text-white"
-            style={{ background: "#10b981" }}
-            onClick={handleSubmit}
-            disabled={saving || answeredCount < questions.length}
-          >
-            {saving ? "Submitting…"
-              : answeredCount < questions.length
-              ? `${questions.length - answeredCount} question${questions.length - answeredCount !== 1 ? "s" : ""} unanswered`
-              : "Submit Assessment"}
-          </Button>
         </div>
       </div>
     </div>

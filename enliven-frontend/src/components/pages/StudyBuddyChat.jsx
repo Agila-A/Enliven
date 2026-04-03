@@ -168,71 +168,74 @@ export default function StudyBuddyChat() {
   ════════════════════════════════════════════════════════ */
   return (
     <>
-      {/* Inline styles for markdown classes (no extra CSS file needed) */}
       <style>{`
         .sb-code {
           display: block;
-          background: var(--secondary);
+          background: rgba(242, 231, 203, 0.4);
           color: var(--foreground);
-          border-radius: 8px;
-          padding: 10px 14px;
-          font-size: 12px;
+          border-radius: 12px;
+          padding: 12px 16px;
+          font-size: 13px;
           line-height: 1.6;
           overflow-x: auto;
-          margin: 8px 0;
+          margin: 12px 0;
           font-family: 'JetBrains Mono', 'Fira Code', monospace;
           white-space: pre;
+          border: 1px solid rgba(242, 231, 203, 0.8);
         }
         .sb-inline-code {
-          background: var(--secondary);
-          color: var(--enliven-purple, #582B5B);
-          border-radius: 4px;
-          padding: 1px 6px;
-          font-size: 12px;
+          background: rgba(242, 231, 203, 0.6);
+          color: #C54F2D;
+          border-radius: 6px;
+          padding: 2px 6px;
+          font-size: 13px;
           font-family: monospace;
+          font-weight: 500;
         }
-        .sb-h2 { font-size: 15px; font-weight: 700; margin: 8px 0 2px; }
-        .sb-h3 { font-size: 13px; font-weight: 600; margin: 6px 0 2px; }
-        .sb-ul { padding-left: 18px; margin: 4px 0; }
-        .sb-li { margin: 3px 0; font-size: 13px; line-height: 1.55; }
+        .sb-h2 { font-size: 16px; font-weight: 800; margin: 12px 0 4px; color: inherit; }
+        .sb-h3 { font-size: 14px; font-weight: 700; margin: 10px 0 4px; color: inherit; }
+        .sb-ul { padding-left: 20px; margin: 8px 0; list-style-type: disc; }
+        .sb-li { margin: 4px 0; font-size: 14px; line-height: 1.6; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 10px; }
       `}</style>
 
-      <div className="flex flex-col h-[calc(100vh-4rem)] bg-background">
+      <div className="flex flex-col h-[calc(100vh-5rem)] max-w-5xl mx-auto font-sans tracking-wide py-4 px-2 sm:px-6">
 
+          <div className="bg-white border-2 border-cream rounded-[2rem] flex flex-col h-full shadow-sm overflow-hidden">
         {/* ── Header ── */}
-        <div className="bg-card border-b border-border px-5 py-3.5 flex items-center justify-between shrink-0 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center"
-              style={{ background: "linear-gradient(135deg, var(--enliven-deep-purple), var(--enliven-purple))" }}>
-              <Bot className="w-5 h-5 text-white" />
+        <div className="bg-white border-b-2 border-cream px-6 py-5 flex items-center justify-between shrink-0 z-10 relative shadow-sm">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-red/10 text-red shadow-inner">
+              <Bot className="w-6 h-6" />
             </div>
             <div>
-              <p className="font-semibold text-foreground text-sm leading-tight">Study Buddy</p>
-              <p className="text-[11px] text-muted-foreground leading-tight">
+              <p className="font-extrabold text-foreground text-lg leading-tight tracking-tight mt-1">Study Buddy</p>
+              <p className="text-[11px] font-bold uppercase tracking-widest text-foreground/50 mt-1">
                 {context?.domain
                   ? `${context.domain} · ${context.skillLevel || ""}`
-                  : "Your AI learning assistant"}
+                  : "AI Learning Assistant"}
               </p>
             </div>
           </div>
 
           <button
             onClick={() => setShowCtx(s => !s)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-muted-foreground hover:bg-secondary transition-colors"
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${showCtx ? 'bg-cream text-foreground' : 'border-2 border-cream text-foreground/60 hover:bg-cream/50 hover:text-foreground'}`}
           >
-            <BarChart2 className="w-3.5 h-3.5" />
-            My Context
-            {showCtx ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            <BarChart2 className="w-4 h-4" />
+            <span className="hidden sm:inline">My Context</span>
+            {showCtx ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />}
           </button>
         </div>
 
         {/* ── Context Panel ── */}
-        {showCtx && (
-          <div className="bg-card border-b border-border px-5 py-4 shrink-0">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+        <div className={`bg-cream/20 border-b-2 border-cream transition-all duration-300 overflow-hidden shrink-0 ${showCtx ? 'max-h-96 opacity-100 py-6 px-6' : 'max-h-0 opacity-0 py-0 px-6 border-b-0'}`}>
+            <p className="text-xs font-bold text-foreground/50 uppercase tracking-widest mb-4">
               What Study Buddy knows about you
             </p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-3">
               {[
                 { label: "Domain",   value: context?.domain || "—" },
                 { label: "Level",    value: context?.skillLevel || "—" },
@@ -249,50 +252,43 @@ export default function StudyBuddyChat() {
                 ] : []),
               ].map(({ label, value, warn }) => (
                 <div key={label}
-                  className="rounded-xl px-3 py-2 text-xs border"
-                  style={{
-                    background: warn ? "rgba(239,68,68,0.06)" : "var(--secondary)",
-                    borderColor: warn ? "rgba(239,68,68,0.25)" : "var(--border)",
-                  }}>
-                  <p className="text-muted-foreground mb-0.5 uppercase text-[10px] tracking-wide">{label}</p>
-                  <p className="font-semibold text-foreground" style={warn ? { color: "var(--destructive)" } : {}}>
+                  className={`rounded-2xl px-4 py-3 border-2 min-w-[120px] bg-white shadow-xs ${warn ? 'border-red/30' : 'border-cream'}`}>
+                  <p className="text-foreground/50 mb-1 uppercase text-[10px] font-bold tracking-widest">{label}</p>
+                  <p className={`font-bold text-sm ${warn ? 'text-red' : 'text-foreground'}`}>
                     {value}
                   </p>
                 </div>
               ))}
             </div>
-          </div>
-        )}
+        </div>
 
         {/* ── Messages ── */}
-        <div className="flex-1 overflow-y-auto px-4 py-5 space-y-4">
+        <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-8 space-y-6 relative bg-cream/10 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-white via-cream/10 to-cream/20">
 
           {fetching ? (
-            <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
-              <div className="w-8 h-8 border-2 border-border rounded-full animate-spin"
-                style={{ borderTopColor: "var(--enliven-purple)" }} />
-              <p className="text-sm">Loading your conversation…</p>
+            <div className="flex flex-col items-center justify-center h-full gap-4 text-foreground/60">
+              <div className="w-10 h-10 border-4 border-cream border-t-red rounded-full animate-spin" />
+              <p className="font-bold">Syncing AI context…</p>
             </div>
 
           ) : messages.length === 0 ? (
             /* Empty state */
-            <div className="flex flex-col items-center justify-center h-full gap-5 text-center px-4">
-              <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
-                style={{ background: "linear-gradient(135deg, var(--enliven-deep-purple), var(--enliven-purple))" }}>
-                <Sparkles className="w-8 h-8 text-white" />
+            <div className="flex flex-col items-center justify-center h-full gap-6 text-center px-4 max-w-lg mx-auto">
+              <div className="w-20 h-20 rounded-[2rem] flex items-center justify-center bg-white shadow-soft border-4 border-cream text-yellow transform -rotate-6">
+                <Sparkles className="w-10 h-10" />
               </div>
               <div>
-                <h3 className="font-bold text-foreground text-lg">Hey, I'm Study Buddy!</h3>
-                <p className="text-muted-foreground text-sm mt-1 max-w-xs">
-                  I know your course, skill level, and how your tests went. Ask me anything.
+                <h3 className="font-black text-foreground text-2xl tracking-tight">Hey, I'm Study Buddy!</h3>
+                <p className="text-foreground/70 font-medium text-base mt-3 leading-relaxed">
+                  I know your course, skill level, and how your tests went. Ask me anything to get personalized help.
                 </p>
               </div>
-              <div className="flex flex-wrap gap-2 justify-center max-w-sm">
+              <div className="flex flex-wrap gap-3 justify-center mt-4">
                 {QUICK_PROMPTS.map((p, i) => (
                   <button
                     key={i}
                     onClick={() => sendMessage(p)}
-                    className="px-3 py-2 rounded-xl text-sm border border-border text-muted-foreground hover:bg-secondary transition-colors"
+                    className="px-4 py-2.5 rounded-xl font-bold text-sm border-2 border-cream bg-white text-foreground/70 hover:bg-cream hover:text-foreground transition-all transform hover:-translate-y-0.5 shadow-sm"
                   >
                     {p}
                   </button>
@@ -302,49 +298,41 @@ export default function StudyBuddyChat() {
 
           ) : (
             /* Message list */
-            /* [FIX] check sender === "user" (backend value), not "You" */
             messages.map((msg, i) => {
               const isUser = msg.sender === "user";
               return (
-                <div key={i} className={`flex gap-3 ${isUser ? "justify-end" : "justify-start"}`}>
+                <div key={i} className={`flex gap-4 w-full ${isUser ? "justify-end" : "justify-start"}`}>
                   {!isUser && (
-                    <div className="shrink-0 w-7 h-7 rounded-xl flex items-center justify-center mt-0.5"
-                      style={{ background: "linear-gradient(135deg, var(--enliven-deep-purple), var(--enliven-purple))" }}>
-                      <Bot className="w-4 h-4 text-white" />
+                    <div className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center mt-1 bg-red text-white shadow-inner">
+                      <Bot className="w-5 h-5" />
                     </div>
                   )}
 
                   <div
-                    className="max-w-[72%] rounded-2xl px-4 py-3 text-sm shadow-sm"
-                    style={isUser ? {
-                      background: "linear-gradient(135deg, var(--enliven-deep-purple), var(--enliven-purple))",
-                      color: "#fff",
-                      borderBottomRightRadius: 4,
-                    } : {
-                      background: "var(--card)",
-                      color: "var(--foreground)",
-                      border: "1px solid var(--border)",
-                      borderBottomLeftRadius: 4,
-                    }}
+                    className={`max-w-[80%] rounded-[1.5rem] px-6 py-4 shadow-sm relative ${
+                        isUser 
+                        ? "bg-red text-white rounded-br-md border border-red/80" 
+                        : "bg-white text-foreground border-2 border-cream rounded-bl-md"
+                    }`}
                   >
                     {isUser
-                      ? <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                      ? <p className="leading-relaxed whitespace-pre-wrap font-medium">{msg.text}</p>
                       : <div
-                          className="leading-relaxed"
+                          className="leading-relaxed font-medium"
                           dangerouslySetInnerHTML={{ __html: renderMd(msg.text) }}
                         />
                     }
 
                     {msg.timestamp && (
-                      <p className="text-[10px] mt-1.5 opacity-50">
+                      <p className={`text-[10px] uppercase font-bold tracking-wider mt-3 ${isUser ? 'text-white/60' : 'text-foreground/40'}`}>
                         {new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                       </p>
                     )}
                   </div>
 
                   {isUser && (
-                    <div className="shrink-0 w-7 h-7 rounded-xl flex items-center justify-center mt-0.5 bg-secondary">
-                      <User className="w-4 h-4 text-muted-foreground" />
+                    <div className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center mt-1 bg-cream/70 text-foreground border border-cream shadow-inner text-sm font-black">
+                      SRI
                     </div>
                   )}
                 </div>
@@ -354,18 +342,16 @@ export default function StudyBuddyChat() {
 
           {/* Typing indicator */}
           {loading && (
-            <div className="flex gap-3 justify-start">
-              <div className="shrink-0 w-7 h-7 rounded-xl flex items-center justify-center"
-                style={{ background: "linear-gradient(135deg, var(--enliven-deep-purple), var(--enliven-purple))" }}>
-                <Bot className="w-4 h-4 text-white" />
+            <div className="flex gap-4 justify-start w-full">
+              <div className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center mt-1 bg-red text-white shadow-inner">
+                <Bot className="w-5 h-5" />
               </div>
-              <div className="bg-card border border-border rounded-2xl rounded-bl-sm px-4 py-3 flex gap-1.5 items-center">
+              <div className="bg-white border-2 border-cream text-foreground rounded-[1.5rem] rounded-bl-md px-6 py-5 flex gap-2 items-center shadow-sm">
                 {[0, 0.2, 0.4].map((delay, i) => (
                   <span
                     key={i}
-                    className="w-2 h-2 rounded-full animate-bounce"
+                    className="w-2.5 h-2.5 rounded-full bg-red/60 animate-bounce"
                     style={{
-                      background: "var(--enliven-purple)",
                       animationDelay: `${delay}s`,
                       animationDuration: "1s",
                     }}
@@ -377,53 +363,51 @@ export default function StudyBuddyChat() {
 
           {/* Error */}
           {error && (
-            <div className="flex items-center gap-2 text-sm px-4 py-3 rounded-xl mx-4"
-              style={{ background: "rgba(239,68,68,0.08)", color: "var(--destructive)", border: "1px solid rgba(239,68,68,0.2)" }}>
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              {error}
+            <div className="flex items-center justify-center mx-auto max-w-md w-full">
+                <div className="flex items-center gap-3 text-sm px-6 py-4 rounded-2xl bg-red/10 text-red font-bold border border-red/20 shadow-sm">
+                <AlertCircle className="w-5 h-5 shrink-0" />
+                {error}
+                </div>
             </div>
           )}
 
-          <div ref={bottomRef} />
+          <div ref={bottomRef} className="h-4" />
         </div>
 
         {/* ── Input bar ── */}
-        <div className="shrink-0 bg-card border-t border-border px-4 py-3">
-          <div className="flex gap-3 items-end max-w-4xl mx-auto">
-            <div className="flex-1 bg-background border border-border rounded-2xl flex items-end overflow-hidden focus-within:border-[var(--enliven-purple)] transition-colors"
-              style={{ "--enliven-purple": "#582B5B" }}>
+        <div className="shrink-0 bg-white border-t-2 border-cream px-6 py-5 z-10 relative">
+          <div className="flex gap-4 items-end mx-auto">
+            <div className="flex-1 bg-cream/20 border-2 border-cream rounded-[1.5rem] flex items-end overflow-hidden focus-within:border-red focus-within:bg-white transition-all shadow-inner relative">
               <textarea
                 ref={el => { inputRef.current = el; textareaRef.current = el; }}
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={onKeyDown}
-                placeholder="Ask Study Buddy anything about your course…"
+                placeholder="Ask Study Buddy anything about your learning path…"
                 rows={1}
                 disabled={loading}
-                className="flex-1 bg-transparent px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground resize-none outline-none"
-                style={{ maxHeight: 120 }}
+                className="flex-1 bg-transparent px-5 py-4 text-base font-medium text-foreground placeholder:text-foreground/40 resize-none outline-none custom-scrollbar"
+                style={{ maxHeight: 150 }}
               />
             </div>
 
             <button
               onClick={() => sendMessage()}
               disabled={!input.trim() || loading}
-              className="shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center transition-all"
-              style={{
-                background: input.trim() && !loading
-                  ? "linear-gradient(135deg, var(--enliven-deep-purple), var(--enliven-purple))"
-                  : "var(--secondary)",
-                cursor: input.trim() && !loading ? "pointer" : "default",
-              }}
+              className={`shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${
+                  input.trim() && !loading
+                  ? "bg-red text-white shadow-md hover:shadow-lg hover:bg-red/90 transform hover:-translate-y-0.5 cursor-pointer"
+                  : "bg-cream/50 text-foreground/30 cursor-not-allowed border-2 border-cream"
+              }`}
             >
-              <Send className="w-4 h-4"
-                style={{ color: input.trim() && !loading ? "#fff" : "var(--muted-foreground)" }} />
+              <Send className="w-6 h-6 mr-1 mt-1" />
             </button>
           </div>
 
-          <p className="text-[11px] text-center text-muted-foreground mt-1.5">
-            Enter to send · Shift+Enter for new line
+          <p className="text-[10px] text-center font-bold uppercase tracking-widest text-foreground/40 mt-3 hidden sm:block">
+            Press Enter to send · Shift+Enter for new line
           </p>
+        </div>
         </div>
       </div>
     </>

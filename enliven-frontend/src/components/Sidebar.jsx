@@ -43,7 +43,6 @@ export default function Sidebar() {
   };
 
   const goToCourses = async () => {
-    // Fast path: roadmap already cached in localStorage from this session
     const cached = localStorage.getItem("roadmap");
     if (cached) {
       try {
@@ -55,13 +54,9 @@ export default function Sidebar() {
           return;
         }
       } catch {
-        // corrupted cache — fall through to API fetch
       }
     }
 
-    // BUG FIX: localStorage is empty after a fresh login (roadmap is only written
-    // during the initial assessment, not on login). Always fall back to the API
-    // so returning users aren't sent to /assessment by mistake.
     setCoursesLoading(true);
     try {
       const token = localStorage.getItem("token");
@@ -75,7 +70,6 @@ export default function Sidebar() {
         const roadmap = data?.roadmap;
 
         if (roadmap?.domain && roadmap?.skillLevel) {
-          // Repopulate localStorage so subsequent clicks are instant
           localStorage.setItem("roadmap", JSON.stringify(roadmap));
 
           const domain = roadmap.domain.toLowerCase().replace(/\s+/g, "-");
@@ -84,8 +78,6 @@ export default function Sidebar() {
           return;
         }
       }
-
-      // No roadmap in DB either — user genuinely hasn't done assessment yet
       navigate("/assessment");
     } catch (err) {
       console.error("Sidebar courses nav error:", err);
@@ -107,45 +99,45 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="w-64 bg-card border-r border-border h-screen sticky top-0 flex flex-col">
+    <aside className="w-64 bg-white/70 backdrop-blur-xl border-r border-cream h-screen sticky top-0 flex flex-col font-sans shadow-soft">
       {/* LOGO */}
-      <div className="p-6 border-b border-border">
-        <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 bg-gradient-to-br from-primary to-[#582B5B] rounded-lg flex items-center justify-center">
-            <span className="text-white font-semibold">E</span>
+      <div className="p-6 border-b border-cream/50">
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 bg-red rounded-xl flex items-center justify-center shadow-md">
+            <span className="text-white font-bold text-xl">E</span>
           </div>
-          <span className="text-lg font-semibold">Enliven</span>
+          <span className="text-2xl font-bold text-foreground">Enliven</span>
         </div>
       </div>
 
       {/* MENU */}
-      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+      <nav className="flex-1 p-5 space-y-2 overflow-y-auto">
         {menuItems.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             onClick={() => go(id)}
             disabled={id === "courses" && coursesLoading}
-            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all ${
+            className={`w-full flex items-center space-x-4 px-4 py-3.5 rounded-xl transition-all duration-200 ${
               isActive(id)
-                ? "bg-primary text-white shadow-md"
-                : "text-foreground hover:bg-secondary"
+                ? "bg-red text-white shadow-md font-semibold transform hover:scale-[1.02]"
+                : "text-foreground hover:bg-cream hover:text-red font-medium"
             } ${id === "courses" && coursesLoading ? "opacity-60 cursor-wait" : ""}`}
           >
             {id === "courses" && coursesLoading ? (
-              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              <Loader2 className="w-5 h-5 animate-spin text-current" />
             ) : (
-              <Icon className={`w-5 h-5 ${isActive(id) ? "text-white" : "text-muted-foreground"}`} />
+              <Icon className={`w-5 h-5 ${isActive(id) ? "text-white" : "text-foreground/70"}`} />
             )}
-            <span className="font-medium">{label}</span>
+            <span>{label}</span>
           </button>
         ))}
       </nav>
 
       {/* LOGOUT */}
-      <div className="p-4 border-t border-border">
+      <div className="p-5 border-t border-cream/50 bg-white/40">
         <button
           onClick={logout}
-          className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-red-600 hover:bg-red-50 transition-colors"
+          className="w-full flex items-center space-x-4 px-4 py-3.5 rounded-xl text-red font-medium hover:bg-red/10 transition-colors"
         >
           <LogOut className="w-5 h-5" />
           <span>Logout</span>
