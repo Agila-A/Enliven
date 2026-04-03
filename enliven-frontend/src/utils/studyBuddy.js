@@ -10,8 +10,8 @@ export async function updateStudyBuddyContext(partial) {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      // IMPORTANT: wrap in { context: ... }
-      body: JSON.stringify({ context: partial }),
+      // IMPORTANT: Flatten payload so backend correctly merges it into context mapping
+      body: JSON.stringify({ event: partial.event || partial.step || "context_update", ...partial }),
     });
   } catch (err) {
     console.debug("StudyBuddy context update skipped:", err?.message || err);

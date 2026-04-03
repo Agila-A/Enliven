@@ -68,15 +68,55 @@ export default function StudyBuddyChat() {
       const headers = { Authorization: `Bearer ${token}` };
 
       try {
-        const [histRes, ctxRes] = await Promise.all([
+        const [histRes, ctxRes, profileRes] = await Promise.all([
           fetch(`${import.meta.env.VITE_API_URL}/api/chatbot/history`,  { headers }),
           fetch(`${import.meta.env.VITE_API_URL}/api/chatbot/context`,  { headers }),
+          fetch(`${import.meta.env.VITE_API_URL}/api/profile/me`,  { headers })
         ]);
 
-        const [hist, ctx] = await Promise.all([histRes.json(), ctxRes.json()]);
+        const [hist, ctx, profile] = await Promise.all([
+            histRes.json(), 
+            ctxRes.json(),
+            profileRes.json().catch(() => ({}))
+        ]);
 
         if (hist.success) setMessages(hist.messages || []);
-        if (ctx.success)  setContext(ctx.context   || {});
+        
+        // Fix mapping: context might be double-nested due to old frontend bug
+        let mergedCtx = {};
+        if (ctx.success && ctx.context) {
+            mergedCtx = { ...ctx.context, ...(ctx.context.context || {}) };
+        }
+        
+        // Sync missing profile data to backend so the AI actually has this info
+        let needsSync = false;
+        if (profile.success && profile.user) {
+            if (!mergedCtx.domain && profile.user.domain) {
+                mergedCtx.domain = profile.user.domain;
+                needsSync = true;
+            }
+            if (!mergedCtx.skillLevel && profile.user.skillLevel) {
+                mergedCtx.skillLevel = profile.user.skillLevel;
+                needsSync = true;
+            }
+        }
+
+        if (needsSync) {
+            fetch(`${import.meta.env.VITE_API_URL}/api/chatbot/context/update`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    event: "sync_profile",
+                    domain: mergedCtx.domain,
+                    skillLevel: mergedCtx.skillLevel,
+                }),
+            }).catch(e => console.error("Sync error:", e));
+        }
+
+        setContext(mergedCtx);
       } catch (err) {
         console.error("StudyBuddy init:", err);
         setError("Couldn't load your chat history.");
@@ -134,7 +174,13 @@ export default function StudyBuddyChat() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const ctxData = await ctxRes.json();
-      if (ctxData.success) setContext(ctxData.context || {});
+      if (ctxData.success) {
+          // Merge to preserve profile data injected earlier
+          setContext(prev => {
+              const fresh = { ...(ctxData.context || {}), ...((ctxData.context || {}).context || {}) };
+              return { ...prev, ...fresh };
+          });
+      }
 
     } catch (err) {
       console.error("sendMessage:", err);
@@ -239,7 +285,7 @@ export default function StudyBuddyChat() {
               {[
                 { label: "Domain",   value: context?.domain || "—" },
                 { label: "Level",    value: context?.skillLevel || "—" },
-                { label: "Module",   value: context?.currentModule != null ? `Module ${context.currentModule}` : "—" },
+                { label: "Module",   value: context?.module != null ? `Module ${context.module}` : (context?.currentModule != null ? `Module ${context.currentModule}` : "—") },
                 { label: "Completed",
                   value: Array.isArray(context?.completedModules) && context.completedModules.length
                     ? `Modules ${context.completedModules.join(", ")}`
