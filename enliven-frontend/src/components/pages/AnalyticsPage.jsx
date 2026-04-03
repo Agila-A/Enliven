@@ -1,435 +1,430 @@
-import React from 'react';
-import { 
-  TrendingUp, 
-  TrendingDown,
-  Clock, 
-  Target, 
-  Award,
-  BookOpen,
-  Brain,
-  Zap,
-  CheckCircle
-} from 'lucide-react';
-import { StatsCard } from '../StatsCard';
-import { ProgressBar } from '../ProgressBar';
-import { 
-  LineChart, 
-  Line, 
-  BarChart,
-  Bar,
-  RadarChart,
-  Radar,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  Legend,
-  PieChart,
-  Pie,
-  Cell
-} from 'recharts';
+// pages/AnalyticsPage.jsx
+import React, { useEffect, useRef, useState } from "react";
+import { TrendingUp, Shield, Clock, Target, Award, AlertTriangle, Loader2 } from "lucide-react";
+import { Button } from "../ui/button";
+import Chart from "chart.js/auto";
 
+/* ─── COLOUR HELPERS ─────────────────────────────────────────── */
+const scoreColor = (score) =>
+  score >= 80 ? "#22c55e" : score >= 60 ? "#f59e0b" : "#ef4444";
+
+/* ─── STAT CARD ──────────────────────────────────────────────── */
+function StatCard({ label, value, sub, icon: Icon, color = "text-primary" }) {
+  return (
+    <div className="bg-card border rounded-xl p-5 flex items-start gap-4">
+      <div className={`p-3 rounded-lg bg-primary/10 ${color}`}>
+        <Icon className="w-5 h-5" />
+      </div>
+      <div>
+        <p className="text-muted-foreground text-sm">{label}</p>
+        <p className="text-2xl font-semibold mt-0.5">{value}</p>
+        {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
+      </div>
+    </div>
+  );
+}
+
+/* ─── CHART WRAPPER ──────────────────────────────────────────── */
+function ChartCard({ title, children }) {
+  return (
+    <div className="bg-card border rounded-xl p-6">
+      <h3 className="font-semibold text-base mb-4">{title}</h3>
+      {children}
+    </div>
+  );
+}
+
+/* ─── INTEGRITY BADGE ─────────────────────────────────────────── */
+function IntegrityBadge({ score }) {
+  const color =
+    score >= 90 ? "bg-green-50 text-green-700 border-green-200"
+    : score >= 70 ? "bg-amber-50 text-amber-700 border-amber-200"
+    : "bg-red-50 text-red-700 border-red-200";
+  const label = score >= 90 ? "Excellent" : score >= 70 ? "Fair" : "Needs attention";
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm border font-medium ${color}`}>
+      <Shield className="w-3.5 h-3.5" />
+      {label} ({score}/100)
+    </span>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MAIN PAGE
+═══════════════════════════════════════════════════════════════ */
 export default function AnalyticsPage() {
-  const weeklyProgress = [
-    { week: 'Week 1', hours: 8, completed: 3 },
-    { week: 'Week 2', hours: 12, completed: 5 },
-    { week: 'Week 3', hours: 10, completed: 4 },
-    { week: 'Week 4', hours: 15, completed: 7 },
-    { week: 'Week 5', hours: 18, completed: 8 },
-    { week: 'Week 6', hours: 14, completed: 6 }
-  ];
+  const [analytics, setAnalytics] = useState(null);
+  const [loading, setLoading]     = useState(true);
+  const [report, setReport]       = useState("");
+  const [reportLoading, setReportLoading] = useState(false);
+  const [error, setError]         = useState("");
 
-  const performanceBySubject = [
-    { subject: 'React', score: 85 },
-    { subject: 'JavaScript', score: 92 },
-    { subject: 'CSS', score: 78 },
-    { subject: 'Node.js', score: 75 },
-    { subject: 'TypeScript', score: 88 }
-  ];
+  // Chart refs
+  const scoreTrendRef    = useRef(null);
+  const moduleBarRef     = useRef(null);
+  const violationRef     = useRef(null);
+  const timeRef          = useRef(null);
+  const chartInstances   = useRef({});
 
-  const skillsRadar = [
-    { skill: 'Frontend', current: 85, target: 95 },
-    { skill: 'Backend', current: 65, target: 85 },
-    { skill: 'Database', current: 70, target: 80 },
-    { skill: 'DevOps', current: 55, target: 75 },
-    { skill: 'Testing', current: 75, target: 90 }
-  ];
+  const token = localStorage.getItem("token");
 
-  const timeDistribution = [
-    { name: 'Video Lessons', value: 45, color: '#3b82f6' },
-    { name: 'Practice', value: 30, color: '#582B5B' },
-    { name: 'Assessments', value: 15, color: '#864F6C' },
-    { name: 'Reading', value: 10, color: '#DFB6B2' }
-  ];
+  /* ── Fetch analytics ── */
+  useEffect(() => {
+    async function load() {
+      try {
+        const res  = await fetch(`${import.meta.env.VITE_API_URL}/api/analytics`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message);
+        setAnalytics(data);
+      } catch (e) {
+        setError("Failed to load analytics. " + e.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, []);
 
-  const strengths = [
-    { topic: 'Component Lifecycle', score: 95, trend: 'up' },
-    { topic: 'State Management', score: 92, trend: 'up' },
-    { topic: 'Hooks & Effects', score: 88, trend: 'stable' }
-  ];
+  /* ── Build charts after data loads ── */
+  useEffect(() => {
+    if (!analytics?.hasData) return;
 
-  const weaknesses = [
-    { topic: 'Performance Optimization', score: 62, trend: 'up' },
-    { topic: 'Testing', score: 58, trend: 'stable' },
-    { topic: 'TypeScript Integration', score: 65, trend: 'up' }
-  ];
+    const { scoreTrend, moduleComparison, totalViolations, timeTaken } = analytics;
 
-  const learningPace = {
-    current: 'On Track',
-    compared: '+15% faster than average',
-    color: 'success'
+    // Destroy existing instances before re-creating
+    Object.values(chartInstances.current).forEach(c => c?.destroy());
+    chartInstances.current = {};
+
+    /* Score trend line chart */
+    if (scoreTrendRef.current && scoreTrend?.length) {
+      chartInstances.current.trend = new Chart(scoreTrendRef.current, {
+        type: "line",
+        data: {
+          labels:   scoreTrend.map(s => s.label),
+          datasets: [{
+            label:           "Score (%)",
+            data:            scoreTrend.map(s => s.score),
+            borderColor:     "#6366f1",
+            backgroundColor: "rgba(99,102,241,0.1)",
+            borderWidth:     2,
+            pointRadius:     5,
+            pointBackgroundColor: scoreTrend.map(s => scoreColor(s.score)),
+            tension:         0.3,
+            fill:            true,
+          }],
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { min: 0, max: 100, grid: { color: "rgba(0,0,0,0.05)" } },
+            x: { grid: { display: false } },
+          },
+        },
+      });
+    }
+
+    /* Module comparison bar chart */
+    if (moduleBarRef.current && moduleComparison?.length) {
+      chartInstances.current.modules = new Chart(moduleBarRef.current, {
+        type: "bar",
+        data: {
+          labels: moduleComparison.map(m => m.label),
+          datasets: [
+            {
+              label:           "Score (%)",
+              data:            moduleComparison.map(m => m.score),
+              backgroundColor: moduleComparison.map(m => scoreColor(m.score)),
+              borderRadius:    6,
+              barThickness:    32,
+            },
+            {
+              label:           "Accuracy (%)",
+              data:            moduleComparison.map(m => m.accuracy ?? 0),
+              backgroundColor: "rgba(99,102,241,0.25)",
+              borderColor:     "#6366f1",
+              borderWidth:     1.5,
+              borderRadius:    6,
+              barThickness:    32,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { position: "bottom", labels: { boxWidth: 12 } } },
+          scales: {
+            y: { min: 0, max: 100, grid: { color: "rgba(0,0,0,0.05)" } },
+            x: { grid: { display: false } },
+          },
+        },
+      });
+    }
+
+    /* Violation breakdown doughnut */
+    if (violationRef.current) {
+      const v = totalViolations;
+      const labels = ["Tab switches", "Face not detected", "Multiple faces", "Looking away", "Expression alerts"];
+      const values = [v.tabSwitches, v.faceNotDetected, v.multipleFaces, v.lookingAway, v.expressionAlert];
+      const total  = values.reduce((s, n) => s + n, 0);
+
+      chartInstances.current.violations = new Chart(violationRef.current, {
+        type: "doughnut",
+        data: {
+          labels,
+          datasets: [{
+            data:            values,
+            backgroundColor: ["#ef4444","#f59e0b","#8b5cf6","#06b6d4","#ec4899"],
+            borderWidth:     0,
+            hoverOffset:     6,
+          }],
+        },
+        options: {
+          responsive: true,
+          cutout:  "68%",
+          plugins: {
+            legend: { position: "right", labels: { boxWidth: 10, font: { size: 12 } } },
+            title:  { display: true, text: total === 0 ? "No violations recorded" : `${total} total violations` },
+          },
+        },
+      });
+    }
+
+    /* Time taken bar chart */
+    if (timeRef.current && timeTaken?.length) {
+      chartInstances.current.time = new Chart(timeRef.current, {
+        type: "bar",
+        data: {
+          labels:   timeTaken.map(t => t.label),
+          datasets: [{
+            label:           "Minutes",
+            data:            timeTaken.map(t => t.minutes),
+            backgroundColor: "#6366f1",
+            borderRadius:    6,
+            barThickness:    28,
+          }],
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, grid: { color: "rgba(0,0,0,0.05)" } },
+            x: { grid: { display: false } },
+          },
+        },
+      });
+    }
+
+    return () => {
+      Object.values(chartInstances.current).forEach(c => c?.destroy());
+    };
+  }, [analytics]);
+
+  /* ── Generate AI report ── */
+  const handleGenerateReport = async () => {
+    if (!analytics?.hasData) return;
+    setReportLoading(true);
+    setReport("");
+    try {
+      const res  = await fetch(`${import.meta.env.VITE_API_URL}/api/analytics/report`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({
+          overallStats:   analytics.overallStats,
+          scoreTrend:     analytics.scoreTrend,
+          totalViolations: analytics.totalViolations,
+          attemptDetails: analytics.attemptDetails,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) setReport(data.report);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setReportLoading(false);
+    }
   };
 
-  return (
-    <div className="p-8 space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold mb-2">Analytics & Insights</h1>
+  /* ── Loading / error / empty states ── */
+  if (loading) {
+    return (
+      <div className="p-8 flex items-center gap-3 text-muted-foreground">
+        <Loader2 className="w-5 h-5 animate-spin" /> Loading analytics…
+      </div>
+    );
+  }
+
+  if (error) {
+    return <div className="p-8 text-red-600">{error}</div>;
+  }
+
+  if (!analytics?.hasData) {
+    return (
+      <div className="p-8 text-center">
+        <div className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center mx-auto mb-4">
+          <TrendingUp className="w-8 h-8 text-muted-foreground" />
+        </div>
+        <h2 className="text-xl font-semibold mb-2">No data yet</h2>
         <p className="text-muted-foreground">
-          Track your progress, identify strengths, and discover areas for improvement
+          Complete your first module test to see your analytics here.
+        </p>
+      </div>
+    );
+  }
+
+  const { overallStats, totalViolations, attemptDetails } = analytics;
+
+  return (
+    <div className="p-8 space-y-8 max-w-6xl">
+
+      {/* ── Header ── */}
+      <div>
+        <h1 className="text-3xl font-bold mb-1">Analytics</h1>
+        <p className="text-muted-foreground">
+          Your assessment performance across all modules.
         </p>
       </div>
 
-      {/* Overview Stats */}
-      <div className="grid lg:grid-cols-4 gap-6">
-        <StatsCard 
-          title="Total Study Time"
-          value="87h"
-          icon={Clock}
-          trend={{ value: '+12h this week', positive: true }}
-          color="primary"
-        />
-        <StatsCard 
-          title="Avg. Score"
-          value="82%"
+      {/* ── Stat Cards Row ── */}
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          label="Average score"
+          value={`${overallStats.avgScore}%`}
+          sub={`Best: ${overallStats.highestScore}% · Lowest: ${overallStats.lowestScore}%`}
           icon={Target}
-          trend={{ value: '+5% from last month', positive: true }}
-          color="purple"
         />
-        <StatsCard 
-          title="Modules Completed"
-          value="24"
-          icon={CheckCircle}
-          trend={{ value: '+6 this month', positive: true }}
-          color="success"
-        />
-        <StatsCard 
-          title="Learning Streak"
-          value="15"
+        <StatCard
+          label="Pass rate"
+          value={`${overallStats.passRate}%`}
+          sub={`${overallStats.passedCount} passed · ${overallStats.failedCount} failed`}
           icon={Award}
-          trend={{ value: 'Best: 23 days', positive: true }}
-          color="pink"
+          color={overallStats.passRate >= 60 ? "text-green-600" : "text-red-600"}
+        />
+        <StatCard
+          label="Avg time per test"
+          value={overallStats.avgDurationMins ? `${overallStats.avgDurationMins} min` : "—"}
+          sub={`${overallStats.totalAttempts} tests taken`}
+          icon={Clock}
+        />
+        <StatCard
+          label="Proctoring integrity"
+          value={`${overallStats.avgIntegrity}/100`}
+          sub={overallStats.flaggedCount > 0 ? `${overallStats.flaggedCount} flagged` : "No flags"}
+          icon={Shield}
+          color={overallStats.avgIntegrity >= 80 ? "text-green-600" : "text-amber-600"}
         />
       </div>
 
-      {/* Performance Overview */}
+      {/* ── Charts Row 1 ── */}
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* Weekly Progress */}
-        <div className="bg-card rounded-xl border border-border p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-xl font-semibold mb-1">Weekly Learning Activity</h3>
-              <p className="text-sm text-muted-foreground">Study hours and completed lessons</p>
-            </div>
-            <TrendingUp className="w-5 h-5 text-success" />
-          </div>
-          
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={weeklyProgress}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis dataKey="week" stroke="#64748b" />
-              <YAxis stroke="#64748b" />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: '#ffffff', 
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px'
-                }}
-              />
-              <Legend />
-              <Line 
-                type="monotone" 
-                dataKey="hours" 
-                stroke="#3b82f6" 
-                strokeWidth={3}
-                name="Study Hours"
-                dot={{ fill: '#3b82f6', r: 4 }}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="completed" 
-                stroke="#582B5B" 
-                strokeWidth={3}
-                name="Lessons Completed"
-                dot={{ fill: '#582B5B', r: 4 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Performance by Subject */}
-        <div className="bg-card rounded-xl border border-border p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-xl font-semibold mb-1">Performance by Subject</h3>
-              <p className="text-sm text-muted-foreground">Average assessment scores</p>
-            </div>
-            <Target className="w-5 h-5 text-[#582B5B]" />
-          </div>
-          
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={performanceBySubject} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis type="number" domain={[0, 100]} stroke="#64748b" />
-              <YAxis dataKey="subject" type="category" stroke="#64748b" />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: '#ffffff', 
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px'
-                }}
-              />
-              <Bar dataKey="score" fill="#3b82f6" radius={[0, 8, 8, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        <ChartCard title="Score trend over time">
+          <canvas ref={scoreTrendRef} height={200} />
+        </ChartCard>
+        <ChartCard title="Module comparison — score vs accuracy">
+          <canvas ref={moduleBarRef} height={200} />
+        </ChartCard>
       </div>
 
-      {/* Skills Radar & Time Distribution */}
+      {/* ── Charts Row 2 ── */}
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* Skills Radar */}
-        <div className="bg-card rounded-xl border border-border p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-xl font-semibold mb-1">Skills Assessment</h3>
-              <p className="text-sm text-muted-foreground">Current vs Target proficiency</p>
-            </div>
-            <Brain className="w-5 h-5 text-primary" />
-          </div>
-          
-          <ResponsiveContainer width="100%" height={300}>
-            <RadarChart data={skillsRadar}>
-              <PolarGrid stroke="#e5e7eb" />
-              <PolarAngleAxis dataKey="skill" stroke="#64748b" />
-              <PolarRadiusAxis angle={90} domain={[0, 100]} stroke="#64748b" />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: '#ffffff', 
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px'
-                }}
-              />
-              <Legend />
-              <Radar name="Current Level" dataKey="current" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.6} />
-              <Radar name="Target Level" dataKey="target" stroke="#582B5B" fill="#582B5B" fillOpacity={0.3} />
-            </RadarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Time Distribution */}
-        <div className="bg-card rounded-xl border border-border p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-xl font-semibold mb-1">Time Distribution</h3>
-              <p className="text-sm text-muted-foreground">How you spend your learning time</p>
-            </div>
-            <Clock className="w-5 h-5 text-[#864F6C]" />
-          </div>
-          
-          <div className="flex items-center justify-center">
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie
-                  data={timeDistribution}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
-                  paddingAngle={5}
-                  dataKey="value"
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                >
-                  {timeDistribution.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: '#ffffff', 
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px'
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+        <ChartCard title="Proctoring violation breakdown">
+          <canvas ref={violationRef} height={220} />
+        </ChartCard>
+        <ChartCard title="Time taken per test">
+          <canvas ref={timeRef} height={220} />
+        </ChartCard>
       </div>
 
-      {/* Strengths & Weaknesses */}
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* Strengths */}
-        <div className="bg-card rounded-xl border border-border p-6">
-          <div className="flex items-center space-x-2 mb-6">
-            <div className="p-2 bg-success/10 rounded-lg">
-              <Zap className="w-5 h-5 text-success" />
-            </div>
-            <div>
-              <h3 className="text-xl font-semibold">Your Strengths</h3>
-              <p className="text-sm text-muted-foreground">Topics you've mastered</p>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            {strengths.map((item, index) => (
-              <div key={index} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <span className="font-medium">{item.topic}</span>
-                    {item.trend === 'up' && (
-                      <TrendingUp className="w-4 h-4 text-success" />
+      {/* ── Attempt Table ── */}
+      <div className="bg-card border rounded-xl p-6">
+        <h3 className="font-semibold text-base mb-4">All attempts</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b text-left text-muted-foreground">
+                <th className="pb-3 font-medium">Module</th>
+                <th className="pb-3 font-medium">Score</th>
+                <th className="pb-3 font-medium">Accuracy</th>
+                <th className="pb-3 font-medium">Time</th>
+                <th className="pb-3 font-medium">Integrity</th>
+                <th className="pb-3 font-medium">Status</th>
+                <th className="pb-3 font-medium">Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {attemptDetails.slice().reverse().map(a => (
+                <tr key={a.id} className="border-b last:border-0 hover:bg-secondary/40 transition-colors">
+                  <td className="py-3 font-medium">{a.moduleTitle}</td>
+                  <td className="py-3">
+                    <span style={{ color: scoreColor(a.score) }} className="font-semibold">
+                      {a.score}%
+                    </span>
+                  </td>
+                  <td className="py-3">
+                    {a.accuracy ? `${a.accuracy.correct}/${a.accuracy.total} (${a.accuracy.pct}%)` : "—"}
+                  </td>
+                  <td className="py-3">
+                    {a.durationMins ? `${a.durationMins} min` : "—"}
+                  </td>
+                  <td className="py-3">
+                    <IntegrityBadge score={a.integrity} />
+                  </td>
+                  <td className="py-3">
+                    {a.passed ? (
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 border border-green-200">
+                        Passed
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 border border-red-200">
+                        Failed
+                      </span>
                     )}
-                  </div>
-                  <span className="text-sm font-semibold text-success">{item.score}%</span>
-                </div>
-                <ProgressBar progress={item.score} color="success" />
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-6 p-4 bg-success/5 rounded-lg border border-success/20">
-            <p className="text-sm">
-              <span className="font-semibold text-success">Great job!</span> You're performing exceptionally 
-              well in these areas. Consider helping others or exploring advanced topics.
-            </p>
-          </div>
-        </div>
-
-        {/* Areas for Improvement */}
-        <div className="bg-card rounded-xl border border-border p-6">
-          <div className="flex items-center space-x-2 mb-6">
-            <div className="p-2 bg-warning/10 rounded-lg">
-              <Target className="w-5 h-5 text-warning" />
-            </div>
-            <div>
-              <h3 className="text-xl font-semibold">Areas for Improvement</h3>
-              <p className="text-sm text-muted-foreground">Topics to focus on</p>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            {weaknesses.map((item, index) => (
-              <div key={index} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <span className="font-medium">{item.topic}</span>
-                    {item.trend === 'up' && (
-                      <TrendingUp className="w-4 h-4 text-primary" />
+                    {a.flagged && (
+                      <span className="ml-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200">
+                        Flagged
+                      </span>
                     )}
-                  </div>
-                  <span className="text-sm font-semibold text-warning">{item.score}%</span>
-                </div>
-                <ProgressBar progress={item.score} color="warning" />
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-6 p-4 bg-primary/5 rounded-lg border border-primary/20">
-            <p className="text-sm">
-              <span className="font-semibold text-primary">Keep practicing!</span> We've curated 
-              personalized exercises and resources to help you improve in these areas.
-            </p>
-          </div>
+                  </td>
+                  <td className="py-3 text-muted-foreground">
+                    {new Date(a.takenAt).toLocaleDateString()}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* Learning Pace */}
-      <div className="bg-gradient-to-r from-primary to-[#582B5B] rounded-xl p-8 text-white">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <div className="flex items-center space-x-2 mb-4">
-              <TrendingUp className="w-6 h-6" />
-              <h3 className="text-2xl font-semibold">Learning Pace Analysis</h3>
-            </div>
-            
-            <div className="grid md:grid-cols-3 gap-6 mb-6">
-              <div className="bg-white/10 rounded-lg p-4">
-                <p className="text-white/80 text-sm mb-1">Current Pace</p>
-                <p className="text-2xl font-bold">{learningPace.current}</p>
-              </div>
-              <div className="bg-white/10 rounded-lg p-4">
-                <p className="text-white/80 text-sm mb-1">Compared to Average</p>
-                <p className="text-2xl font-bold">{learningPace.compared}</p>
-              </div>
-              <div className="bg-white/10 rounded-lg p-4">
-                <p className="text-white/80 text-sm mb-1">Estimated Completion</p>
-                <p className="text-2xl font-bold">3 weeks</p>
-              </div>
-            </div>
-
-            <p className="text-white/90 mb-4">
-              You're making excellent progress! Your learning pace is steady and consistent. 
-              At this rate, you'll complete your current track ahead of schedule.
+      {/* ── AI Report ── */}
+      <div className="bg-card border rounded-xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="font-semibold text-base">AI performance report</h3>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Generated by Groq — personalised insights based on your data.
             </p>
-
-            <div className="flex flex-wrap gap-3">
-              <div className="bg-white/10 rounded-lg px-4 py-2">
-                <span className="text-sm">✓ Consistent study habits</span>
-              </div>
-              <div className="bg-white/10 rounded-lg px-4 py-2">
-                <span className="text-sm">✓ High engagement rate</span>
-              </div>
-              <div className="bg-white/10 rounded-lg px-4 py-2">
-                <span className="text-sm">✓ Strong assessment performance</span>
-              </div>
-            </div>
           </div>
+          <Button onClick={handleGenerateReport} disabled={reportLoading}>
+            {reportLoading
+              ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Generating…</>
+              : report ? "Regenerate report" : "✨ Generate report"}
+          </Button>
         </div>
+
+        {report && (
+          <div className="mt-4 p-4 bg-secondary/50 rounded-lg border text-sm leading-relaxed text-foreground whitespace-pre-wrap">
+            {report}
+          </div>
+        )}
+
+        {!report && !reportLoading && (
+          <div className="mt-4 p-6 border border-dashed rounded-lg text-center text-muted-foreground text-sm">
+            Click "Generate report" to get personalised feedback from the AI coach.
+          </div>
+        )}
       </div>
 
-      {/* Recommendations */}
-      <div className="bg-card rounded-xl border border-border p-6">
-        <div className="flex items-center space-x-2 mb-6">
-          <BookOpen className="w-6 h-6 text-primary" />
-          <h3 className="text-xl font-semibold">Personalized Recommendations</h3>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-4">
-          <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
-            <h4 className="font-semibold mb-2">📚 Study More</h4>
-            <p className="text-sm text-muted-foreground mb-3">
-              Focus on Testing and Performance Optimization to balance your skillset
-            </p>
-            <a href="#" className="text-sm text-primary font-semibold hover:underline">
-              View resources →
-            </a>
-          </div>
-
-          <div className="p-4 bg-success/5 rounded-lg border border-success/20">
-            <h4 className="font-semibold mb-2">🎯 Practice</h4>
-            <p className="text-sm text-muted-foreground mb-3">
-              Take additional practice quizzes to reinforce your weak areas
-            </p>
-            <a href="#" className="text-sm text-success font-semibold hover:underline">
-              Start practicing →
-            </a>
-          </div>
-
-          <div className="p-4 bg-purple-500/5 rounded-lg border border-purple-500/20">
-            <h4 className="font-semibold mb-2">🚀 Level Up</h4>
-            <p className="text-sm text-muted-foreground mb-3">
-              You're ready for advanced React patterns and optimization techniques
-            </p>
-            <a href="#" className="text-sm text-[#582B5B] font-semibold hover:underline">
-              Explore advanced →
-            </a>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
