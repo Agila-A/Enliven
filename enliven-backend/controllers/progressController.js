@@ -85,19 +85,77 @@ export const getProgressForCourse = async (req, res) => {
       });
     }
 
-    const doc = await Progress.findOne({ userId, courseId }).lean();
+    // FIX: don't use .lean() here — we need to convert the Map manually
+    const doc = await Progress.findOne({ userId, courseId });
+
+    if (!doc) {
+      return res.json({
+        success: true,
+        progress: [],
+        moduleStatus: {},
+        finalCompleted: false,
+      });
+    }
+
+    // FIX: Mongoose Map → plain object (lean() doesn't do this reliably for Maps)
+    const moduleStatusPlain = {};
+    if (doc.moduleStatus) {
+      for (const [k, v] of doc.moduleStatus.entries()) {
+        moduleStatusPlain[k] = v;
+      }
+    }
+
+    // Convert progress array — videoProgress is also a Map
+    const progressPlain = (doc.progress || []).map(p => ({
+      topicId:       p.topicId,
+      currentIndex:  p.currentIndex,
+      videoCount:    p.videoCount,
+      videoProgress: p.videoProgress
+        ? Object.fromEntries(p.videoProgress.entries())
+        : {},
+    }));
 
     res.json({
-      success: true,
-      progress:        doc?.progress     || [],
-      moduleStatus:    doc?.moduleStatus || {},
-      finalCompleted:  Boolean(doc?.finalCompleted),
+      success:       true,
+      progress:      progressPlain,
+      moduleStatus:  moduleStatusPlain,
+      finalCompleted: Boolean(doc.finalCompleted),
     });
   } catch (err) {
     console.error("getProgressForCourse error:", err);
     res.status(500).json({ success: false, message: "Failed to load progress" });
   }
 };
+
+export async function completeModule(req, res) {
+  try {
+    const userId = req.userId;
+    const { courseId, moduleId } = req.body;
+
+    if (!courseId || !moduleId)
+      return res.status(400).json({ success: false, message: "courseId and moduleId are required" });
+
+    // Use findOneAndUpdate with dot-notation on the Map field
+    const updated = await Progress.findOneAndUpdate(
+      { userId, courseId },
+      { $set: { [`moduleStatus.${moduleId}`]: "completed" } },
+      { upsert: true, new: true }
+    );
+
+    // FIX: Mongoose Map serializes weirdly — convert to plain object before sending
+    const moduleStatusPlain = {};
+    if (updated.moduleStatus) {
+      for (const [k, v] of updated.moduleStatus.entries()) {
+        moduleStatusPlain[k] = v;
+      }
+    }
+
+    return res.json({ success: true, moduleStatus: moduleStatusPlain });
+  } catch (err) {
+    console.error("completeModule error:", err);
+    return res.status(500).json({ success: false, message: "Failed to mark module complete" });
+  }
+}
 
 /* ─── POST /api/progress/assessment ───────────────────────────── */
 export const saveAssessmentProgress = async (req, res) => {

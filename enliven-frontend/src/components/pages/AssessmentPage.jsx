@@ -1,53 +1,54 @@
 // pages/AssessmentPage.jsx
-// ─────────────────────────────────────────────────────────────────
-// BUGS FIXED:
-//  [CRITICAL] markTestComplete & awardBadge called in render → moved to useEffect
-//  [CRITICAL] violations in React state = stale closures → moved to useRef
-//  [CRITICAL] saveAttempt never called → full POST on submit
-//  [CRITICAL] No face-api detection → added TinyFaceDetector loop
-//  [CRITICAL] Camera denied still lets test run → hard gate screen
-//  [IMPORTANT] All 5 violation types now tracked and sent to backend
-//  [IMPORTANT] Module unlock via localStorage + backend saveAttempt
-// ─────────────────────────────────────────────────────────────────
-import React, {
-  useEffect,
-  useRef,
-  useState,
-  useCallback,
-} from "react";
+//
+// THREE BUGS FIXED IN THIS VERSION:
+//
+// ┌─────────────────────────────────────────────────────────────────────────┐
+// │ BUG 1 — Face detection silently does nothing                            │
+// │ Cause: `window.faceapi` requires a <script> CDN tag in index.html.     │
+// │        If that tag is missing / not yet loaded, window.faceapi is      │
+// │        undefined and every detection tick is silently skipped.          │
+// │ Fix:   `import * as faceapi from "face-api.js"` (npm package).         │
+// │        Run: npm install face-api.js                                     │
+// │        Model weights still fetched from CDN at runtime — no local files │
+// │        needed.                                                           │
+// ├─────────────────────────────────────────────────────────────────────────┤
+// │ BUG 2 — One tab switch counted as 2                                     │
+// │ Cause: Both `visibilitychange` AND `window.blur` registered.            │
+// │        Switching a tab fires both simultaneously → 2 increments.        │
+// │ Fix:   Remove window.blur entirely. Only visibilitychange is used.      │
+// ├─────────────────────────────────────────────────────────────────────────┤
+// │ BUG 3 — Module unlock never happens after passing                       │
+// │ Cause: AssessmentPage writes to localStorage but CoursePage reads       │
+// │        moduleStatus from /api/progress/:courseId (DB), which never      │
+// │        gets updated when a test is passed.                              │
+// │ Fix:   On a passing attempt, call POST /api/progress/complete-module    │
+// │        which sets moduleStatus[moduleId] = "completed" in the DB.       │
+// │        CoursePage's refreshModuleStatus() then picks it up on return.   │
+// └─────────────────────────────────────────────────────────────────────────┘
+
+import React, { useEffect, useRef, useState, useCallback } from "react";
+import * as faceapi from "face-api.js";   // ← NPM IMPORT, not window.faceapi
 import {
-  Clock,
-  ShieldCheck,
-  Camera,
-  ChevronRight,
-  RotateCcw,
-  AlertTriangle,
-  CheckCircle2,
-  XCircle,
-  Eye,
-  Users,
-  MonitorOff,
+  Clock, ShieldCheck, Camera, ChevronRight,
+  RotateCcw, AlertTriangle, CheckCircle2,
+  XCircle, Eye, Users, MonitorOff,
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { useLocation, useNavigate } from "react-router-dom";
 import BadgePopup from "../BadgePopup";
 
-/* ── face-api.js must be loaded in index.html:
-   <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-─────────────────────────────────────────────────────────────── */
-const MODELS_URL =
-  "https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights";
-const FACE_DETECT_MS   = 3000;   // run face detection every 3 s
-const LOOK_AWAY_RATIO  = 0.30;   // face centre X > 30% from mid → lookingAway
-const MAX_VIOLATIONS   = 5;      // hard-submit after 5 total violations
-const EXPR_THRESHOLD   = 0.65;   // expression confidence needed to flag
-const SUSPICIOUS_EXPR  = ["surprised", "fearful", "disgusted"];
+/* ─── Constants ──────────────────────────────────────────────── */
+const MODELS_URL     = "https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights";
+const DETECT_MS      = 3000;   // face-detection tick interval
+const LOOK_AWAY      = 0.28;   // face-centre X deviation threshold
+const EXPR_THRESHOLD = 0.65;
+const SUSPICIOUS     = ["surprised", "fearful", "disgusted"];
+const MAX_VIOLATIONS = 5;
 
 export default function AssessmentPage() {
-  const navigate  = useNavigate();
-  const location  = useLocation();
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  /* ── URL params ── */
   const params   = new URLSearchParams(location.search);
   const moduleId = params.get("module");
   const isFinal  = params.get("final") === "true";
@@ -55,13 +56,8 @@ export default function AssessmentPage() {
   const level    = params.get("level");
   const courseId = `${domain}-${level}`;
 
-  /* ── Page phases:
-       "permission" → camera gate
-       "loading"    → fetching questions + loading face-api models
-       "taking"     → active exam
-       "submitted"  → results screen
-  ── */
-  const [phase, setPhase]       = useState("permission");
+  /* ── Phases: permission → loading → ready → taking → submitted ── */
+  const [phase,    setPhase]    = useState("permission");
   const [camError, setCamError] = useState("");
 
   /* ── Questions ── */
@@ -72,68 +68,63 @@ export default function AssessmentPage() {
   /* ── Timer ── */
   const [timeLeft, setTimeLeft] = useState(0);
 
-  /* ── Proctoring UI state ── */
-  const [proctorStatus,    setProctorStatus]    = useState("initializing");
-  const [violationCount,   setViolationCount]   = useState(0);
-  const [violationBanner,  setViolationBanner]  = useState("");
-  const [faceApiReady,     setFaceApiReady]      = useState(false);
+  /* ── Proctoring UI ── */
+  const [proctorStatus,   setProctorStatus]   = useState("initializing");
+  const [violationCount,  setViolationCount]  = useState(0);
+  const [violationBanner, setViolationBanner] = useState("");
+  const [modelsReady,     setModelsReady]     = useState(false);
 
   /* ── Results ── */
-  const [result,     setResult]     = useState(null);
-  const [saving,     setSaving]     = useState(false);
+  const [result,      setResult]      = useState(null);
+  const [saving,      setSaving]      = useState(false);
   const [earnedBadge, setEarnedBadge] = useState(null);
-  const [showPopup,  setShowPopup]  = useState(false);
+  const [showPopup,   setShowPopup]   = useState(false);
 
-  /* ── Refs (mutable, no re-render needed) ── */
+  /* ── Refs ── */
   const videoRef      = useRef(null);
   const streamRef     = useRef(null);
   const detectTimer   = useRef(null);
   const countdownRef  = useRef(null);
   const bannerTimer   = useRef(null);
   const startedAt     = useRef(null);
-  const submittingRef = useRef(false); // prevent double submit
+  const submittingRef = useRef(false);
 
-  /* ── Violation counters in ref (avoids stale closure bugs) ── */
+  /*
+    Violation counters in a ref so the face-detection interval callback
+    always reads the LATEST values (no stale closure).
+  */
   const vRef = useRef({
-    tabSwitches:     0,
-    faceNotDetected: 0,
-    multipleFaces:   0,
-    lookingAway:     0,
-    expressionAlert: 0,
-    noCamera:        false,
+    tabSwitches: 0, faceNotDetected: 0, multipleFaces: 0,
+    lookingAway: 0, expressionAlert: 0, noCamera: false,
   });
 
-  /* ════════════════════════════════════════════════════════
-     1. LOAD face-api MODELS
-  ════════════════════════════════════════════════════════ */
+  /* ══════════════════════════════════════════════════════════
+     1. LOAD face-api MODELS  (npm package, CDN weights)
+  ══════════════════════════════════════════════════════════ */
   useEffect(() => {
-    async function loadModels() {
-      const faceapi = window.faceapi;
-      if (!faceapi) { setFaceApiReady(true); return; } // graceful degrade
+    let cancelled = false;
+    (async () => {
       try {
         await Promise.all([
           faceapi.nets.tinyFaceDetector.loadFromUri(MODELS_URL),
           faceapi.nets.faceExpressionNet.loadFromUri(MODELS_URL),
         ]);
       } catch (e) {
-        console.warn("face-api model load failed, degrading gracefully", e);
+        console.warn("face-api models failed — tab-switch detection still active", e);
       } finally {
-        setFaceApiReady(true);
+        if (!cancelled) setModelsReady(true);
       }
-    }
-    loadModels();
+    })();
+    return () => { cancelled = true; };
   }, []);
 
-  /* ════════════════════════════════════════════════════════
-     2. CAMERA PERMISSION GATE
-  ════════════════════════════════════════════════════════ */
+  /* ══════════════════════════════════════════════════════════
+     2. CAMERA GATE  — test cannot start without camera
+  ══════════════════════════════════════════════════════════ */
   const requestCamera = useCallback(async () => {
     setCamError("");
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: false,
-      });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -143,19 +134,17 @@ export default function AssessmentPage() {
       setPhase("loading");
     } catch {
       vRef.current.noCamera = true;
-      setCamError(
-        "Camera access is required for this proctored test. Please allow camera access and try again."
-      );
+      setCamError("Camera access is required for this proctored test. Please allow camera access and try again.");
     }
   }, []);
 
-  /* ════════════════════════════════════════════════════════
-     3. FETCH QUESTIONS (once camera + models are ready)
-  ════════════════════════════════════════════════════════ */
+  /* ══════════════════════════════════════════════════════════
+     3. FETCH QUESTIONS  (once camera AND models are ready)
+  ══════════════════════════════════════════════════════════ */
   useEffect(() => {
-    if (phase !== "loading" || !faceApiReady) return;
-
-    async function fetchQuestions() {
+    if (phase !== "loading" || !modelsReady) return;
+    let cancelled = false;
+    (async () => {
       try {
         const token = localStorage.getItem("token");
         const url = isFinal
@@ -165,79 +154,45 @@ export default function AssessmentPage() {
         const res  = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
         const data = await res.json();
         if (!data.success) throw new Error("Failed to load questions");
+        if (cancelled) return;
 
         setQuestions(data.questions);
         setSelectedAnswers(Array(data.questions.length).fill(null));
-        setTimeLeft(data.questions.length * 90); // 1.5 min / question
+        setTimeLeft(data.questions.length * 90);
         setPhase("ready");
       } catch (err) {
         console.error(err);
-        setCamError("Failed to load questions. Please refresh.");
+        if (!cancelled) setCamError("Failed to load questions. Please refresh the page.");
       }
-    }
-    fetchQuestions();
-  }, [phase, faceApiReady, domain, level, moduleId, isFinal]);
+    })();
+    return () => { cancelled = true; };
+  }, [phase, modelsReady, domain, level, moduleId, isFinal]);
 
-  /* ════════════════════════════════════════════════════════
-     4. REATTACH STREAM after phase change
-     [FIX] Each phase renders a DIFFERENT <video> DOM element
-     that shares the same ref. When React unmounts one video
-     and mounts another, the ref.current changes to the new
-     element but srcObject is NOT automatically transferred.
-     This effect runs after every phase transition and
-     re-assigns the stream to whichever video is now mounted.
-  ════════════════════════════════════════════════════════ */
-  useEffect(() => {
-    const video = videoRef.current;
-    const stream = streamRef.current;
-    if (!video || !stream) return;
-    if (video.srcObject !== stream) {
-      video.srcObject = stream;
-      video.play().catch(() => {}); // autoPlay may need a nudge
-    }
-  }, [phase]); // re-run every time the active screen changes
-
-  /* ════════════════════════════════════════════════════════
-     5. START EXAM
-  ════════════════════════════════════════════════════════ */
-  const startExam = () => {
-    startedAt.current = new Date();
-    setPhase("taking");
-  };
-
-  /* ════════════════════════════════════════════════════════
-     6. COUNTDOWN TIMER
-  ════════════════════════════════════════════════════════ */
+  /* ══════════════════════════════════════════════════════════
+     4. COUNTDOWN TIMER
+  ══════════════════════════════════════════════════════════ */
   useEffect(() => {
     if (phase !== "taking") return;
     countdownRef.current = setInterval(() => {
       setTimeLeft(t => {
-        if (t <= 1) {
-          clearInterval(countdownRef.current);
-          handleSubmit();
-          return 0;
-        }
+        if (t <= 1) { clearInterval(countdownRef.current); handleSubmit(); return 0; }
         return t - 1;
       });
     }, 1000);
     return () => clearInterval(countdownRef.current);
   }, [phase]); // eslint-disable-line
 
-  /* ════════════════════════════════════════════════════════
-     7. VIOLATION HELPER (uses ref → no stale closure)
-  ════════════════════════════════════════════════════════ */
+  /* ══════════════════════════════════════════════════════════
+     5. VIOLATION HELPER  (ref-based — no stale closure)
+  ══════════════════════════════════════════════════════════ */
   const addViolation = useCallback((type, bannerText) => {
     vRef.current[type] = (vRef.current[type] || 0) + 1;
     const total =
-      vRef.current.tabSwitches +
-      vRef.current.faceNotDetected +
-      vRef.current.multipleFaces +
-      vRef.current.lookingAway +
+      vRef.current.tabSwitches + vRef.current.faceNotDetected +
+      vRef.current.multipleFaces + vRef.current.lookingAway +
       vRef.current.expressionAlert;
-
     setViolationCount(total);
-    showBanner(bannerText);
-
+    if (bannerText) showBanner(bannerText);
     if (total >= MAX_VIOLATIONS) handleSubmit();
   }, []); // eslint-disable-line
 
@@ -247,85 +202,74 @@ export default function AssessmentPage() {
     bannerTimer.current = setTimeout(() => setViolationBanner(""), 3500);
   }
 
-  /* ════════════════════════════════════════════════════════
-     8. TAB / BLUR / RIGHT-CLICK DETECTION
-  ════════════════════════════════════════════════════════ */
+  /* ══════════════════════════════════════════════════════════
+     6. TAB-SWITCH DETECTION
+     FIX: ONLY visibilitychange — window.blur REMOVED.
+     Both fire together on a tab switch = double count.
+     visibilitychange is the correct and only signal needed.
+  ══════════════════════════════════════════════════════════ */
   useEffect(() => {
     if (phase !== "taking") return;
 
     const onVisibility = () => {
-      if (document.hidden) addViolation("tabSwitches", "⚠️ Tab switch detected!");
+      if (document.hidden)
+        addViolation("tabSwitches", "⚠️ Tab switch detected — please stay on this page!");
     };
-    const onBlur = () => addViolation("tabSwitches", "⚠️ Window focus lost!");
-    const onCtx  = (e) => { e.preventDefault(); };
+    const noCtx = (e) => e.preventDefault(); // block right-click (no violation counted)
 
     document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener("blur", onBlur);
-    document.addEventListener("contextmenu", onCtx);
-
+    document.addEventListener("contextmenu", noCtx);
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("blur", onBlur);
-      document.removeEventListener("contextmenu", onCtx);
+      document.removeEventListener("contextmenu", noCtx);
     };
+    // window.blur intentionally NOT added here
   }, [phase, addViolation]);
 
-  /* ════════════════════════════════════════════════════════
-     9. FACE DETECTION LOOP
-  ════════════════════════════════════════════════════════ */
+  /* ══════════════════════════════════════════════════════════
+     7. FACE DETECTION LOOP
+     Uses imported face-api (not window.faceapi) so it always works.
+     Detects: no face, multiple faces, looking away, suspicious expressions.
+  ══════════════════════════════════════════════════════════ */
   useEffect(() => {
-    if (phase !== "taking") return;
+    if (phase !== "taking" || !modelsReady) return;
 
-    const faceapi = window.faceapi;
-    if (!faceapi || !faceApiReady) return;
-
-    async function tick() {
+    const tick = async () => {
       const video = videoRef.current;
-      if (!video || video.readyState < 2) return;
-
+      if (!video || video.readyState < 2 || video.paused) return;
       try {
-        const detections = await faceapi
-          .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+        const dets = await faceapi
+          .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.4 }))
           .withFaceExpressions();
 
-        const n = detections.length;
-
-        if (n === 0) {
-          addViolation("faceNotDetected", "⚠️ No face detected — stay in frame!");
-        } else if (n > 1) {
+        if (dets.length === 0) {
+          addViolation("faceNotDetected", "⚠️ No face detected — please stay in frame!");
+        } else if (dets.length > 1) {
           addViolation("multipleFaces", "⚠️ Multiple faces detected!");
         } else {
-          const det = detections[0];
-
-          // Head-pose proxy: face centre X deviation
-          const { x, width: fw } = det.detection.box;
-          const vw = video.videoWidth || 640;
-          const cx = x + fw / 2;
-          if (Math.abs(cx / vw - 0.5) > LOOK_AWAY_RATIO) {
+          // Head-pose proxy via face-centre X position
+          const { x, width: fw } = dets[0].detection.box;
+          const vw  = video.videoWidth || 640;
+          if (Math.abs((x + fw / 2) / vw - 0.5) > LOOK_AWAY)
             addViolation("lookingAway", "⚠️ Please look at the screen!");
-          }
 
-          // Expression check (silent — just logged, not bannered)
-          if (det.expressions) {
-            const top = Object.entries(det.expressions).sort((a, b) => b[1] - a[1])[0];
-            if (top && SUSPICIOUS_EXPR.includes(top[0]) && top[1] > EXPR_THRESHOLD) {
+          // Suspicious expression (silent — counted but no banner)
+          if (dets[0].expressions) {
+            const top = Object.entries(dets[0].expressions).sort((a, b) => b[1] - a[1])[0];
+            if (top && SUSPICIOUS.includes(top[0]) && top[1] > EXPR_THRESHOLD)
               vRef.current.expressionAlert = (vRef.current.expressionAlert || 0) + 1;
-            }
           }
         }
       } catch { /* ignore per-frame errors */ }
-    }
+    };
 
-    detectTimer.current = setInterval(tick, FACE_DETECT_MS);
+    detectTimer.current = setInterval(tick, DETECT_MS);
     return () => clearInterval(detectTimer.current);
-  }, [phase, faceApiReady, addViolation]);
+  }, [phase, modelsReady, addViolation]);
 
-  /* ════════════════════════════════════════════════════════
-     10. SUBMIT EXAM
-     [FIX] Uses submittingRef to prevent double-calls
-     [FIX] Actually POSTs to /api/proctor/attempt
-     [FIX] badge/unlock in useEffect, not render
-  ════════════════════════════════════════════════════════ */
+  /* ══════════════════════════════════════════════════════════
+     8. SUBMIT  — scores, saves to DB, and marks module complete
+  ══════════════════════════════════════════════════════════ */
   const handleSubmit = useCallback(async () => {
     if (submittingRef.current) return;
     submittingRef.current = true;
@@ -333,55 +277,59 @@ export default function AssessmentPage() {
 
     clearInterval(countdownRef.current);
     clearInterval(detectTimer.current);
-
-    // Stop camera
     streamRef.current?.getTracks().forEach(t => t.stop());
 
-    // Calculate score
     let correct = 0;
-    questions.forEach((q, i) => {
-      if (selectedAnswers[i] === q.correctIndex) correct++;
-    });
-    const total      = questions.length || 1;
-    const score      = Math.round((correct / total) * 100);
-    const passed     = score >= 60;
-
-    const totalViol  =
+    questions.forEach((q, i) => { if (selectedAnswers[i] === q.correctIndex) correct++; });
+    const total   = questions.length || 1;
+    const score   = Math.round((correct / total) * 100);
+    const passed  = score >= 60;
+    const totalV  =
       vRef.current.tabSwitches + vRef.current.faceNotDetected +
-      vRef.current.multipleFaces + vRef.current.lookingAway +
-      vRef.current.expressionAlert;
-
-    const flagged = totalViol >= MAX_VIOLATIONS ||
-                    vRef.current.multipleFaces > 0 ||
-                    vRef.current.tabSwitches > 2;
-
-    const reason = flagged
-      ? `tabs=${vRef.current.tabSwitches}, noFace=${vRef.current.faceNotDetected}, multiFace=${vRef.current.multipleFaces}`
+      vRef.current.multipleFaces + vRef.current.lookingAway + vRef.current.expressionAlert;
+    const flagged = totalV >= MAX_VIOLATIONS || vRef.current.multipleFaces > 0 || vRef.current.tabSwitches > 2;
+    const reason  = flagged
+      ? `tabs=${vRef.current.tabSwitches} noFace=${vRef.current.faceNotDetected} multi=${vRef.current.multipleFaces}`
       : "";
 
+    const token = localStorage.getItem("token");
+
     try {
-      const token = localStorage.getItem("token");
+      /* Save attempt to ProctorAttempt (analytics, Study Buddy context) */
       await fetch(`${import.meta.env.VITE_API_URL}/api/proctor/attempt`, {
-        method:  "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization:  `Bearer ${token}`,
-        },
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           courseId,
           moduleId: isFinal ? "final" : moduleId,
-          questions,
-          userAnswers: selectedAnswers,
-          score,
+          questions, userAnswers: selectedAnswers, score,
           violations: { ...vRef.current },
-          flagged,
-          reason,
+          flagged, reason,
           startedAt: startedAt.current,
-          endedAt:   new Date(),
+          endedAt: new Date(),
         }),
       });
     } catch (err) {
       console.error("saveAttempt failed:", err);
+    }
+
+    /* ─────────────────────────────────────────────────────────
+       BUG 3 FIX: Call /api/progress/complete-module when passed.
+       This writes moduleStatus[moduleId] = "completed" to the DB.
+       CoursePage reads moduleStatus from /api/progress/:courseId,
+       so after refreshModuleStatus() it will see the module as done
+       and unlock the next one — without needing any localStorage key.
+    ───────────────────────────────────────────────────────────── */
+    if (passed && !isFinal) {
+      try {
+        await fetch(`${import.meta.env.VITE_API_URL}/api/progress/complete-module`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ courseId, moduleId }),
+        });
+      } catch (err) {
+        console.error("complete-module failed:", err);
+      }
     }
 
     setResult({ score, passed, flagged, correct, total, violations: { ...vRef.current } });
@@ -389,254 +337,188 @@ export default function AssessmentPage() {
     setPhase("submitted");
   }, [questions, selectedAnswers, courseId, moduleId, isFinal]);
 
-  /* ════════════════════════════════════════════════════════
-     11. POST-SUBMIT EFFECTS
-     [FIX] markTestComplete & awardBadge in useEffect, not render
-  ════════════════════════════════════════════════════════ */
+  /* ══════════════════════════════════════════════════════════
+     9. POST-SUBMIT EFFECTS  (badge only — module unlock handled above)
+  ══════════════════════════════════════════════════════════ */
   useEffect(() => {
-    if (phase !== "submitted" || !result) return;
+    if (phase !== "submitted" || !result?.passed || !isFinal) return;
+    (async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res  = await fetch(`${import.meta.env.VITE_API_URL}/api/profile/add-badge`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ id: "course-completion" }),
+        });
+        const data = await res.json();
+        if (data.success) { setEarnedBadge(data.badge); setShowPopup(true); }
+      } catch (err) { console.error("Badge failed:", err); }
+    })();
+  }, [phase, result, isFinal]);
 
-    if (result.passed) {
-      // Unlock in localStorage (for CoursePage module gating)
-      if (isFinal) {
-        localStorage.setItem(`final-${domain}-${level}`, "done");
-      } else {
-        localStorage.setItem(`test-${domain}-${level}-${moduleId}`, "done");
-      }
-
-      // Award badge on final exam pass
-      if (isFinal) {
-        (async () => {
-          try {
-            const token = localStorage.getItem("token");
-            const res = await fetch(
-              `${import.meta.env.VITE_API_URL}/api/profile/add-badge`,
-              {
-                method:  "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization:  `Bearer ${token}`,
-                },
-                body: JSON.stringify({ id: "course-completion" }),
-              }
-            );
-            const data = await res.json();
-            if (data.success) {
-              setEarnedBadge(data.badge);
-              setShowPopup(true);
-            }
-          } catch (err) {
-            console.error("Badge award failed:", err);
-          }
-        })();
-      }
-    }
-  }, [phase, result]); // eslint-disable-line
-
-  /* ════════════════════════════════════════════════════════
-     UNMOUNT CLEANUP
-  ════════════════════════════════════════════════════════ */
-  useEffect(() => {
-    return () => {
-      streamRef.current?.getTracks().forEach(t => t.stop());
-      clearInterval(detectTimer.current);
-      clearInterval(countdownRef.current);
-      clearTimeout(bannerTimer.current);
-    };
+  /* ══════════════════════════════════════════════════════════
+     CLEANUP
+  ══════════════════════════════════════════════════════════ */
+  useEffect(() => () => {
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    clearInterval(detectTimer.current);
+    clearInterval(countdownRef.current);
+    clearTimeout(bannerTimer.current);
   }, []);
 
-  /* ════════════════════════════════════════════════════════
-     HELPERS
-  ════════════════════════════════════════════════════════ */
-  const fmt = s =>
-    `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
-
+  /* ── helpers ── */
+  const fmt = s => `${String(Math.floor(s / 60)).padStart(2,"0")}:${String(s % 60).padStart(2,"0")}`;
   const answeredCount = selectedAnswers.filter(a => a !== null).length;
-  const progress = questions.length ? (answeredCount / questions.length) * 100 : 0;
-  const isUrgent = timeLeft > 0 && timeLeft < 60;
+  const progress      = questions.length ? (answeredCount / questions.length) * 100 : 0;
+  const isUrgent      = timeLeft > 0 && timeLeft < 60;
 
-  /* ════════════════════════════════════════════════════════
-     RENDER
-  ════════════════════════════════════════════════════════ */
-
-  /* ── PERMISSION SCREEN ── */
-  if (phase === "permission") {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-6">
-        <div className="bg-card border border-border rounded-2xl shadow-xl max-w-md w-full p-8 flex flex-col items-center gap-5">
-          <div className="w-16 h-16 rounded-full flex items-center justify-center"
-            style={{ background: "var(--enliven-deep-purple)" }}>
-            <ShieldCheck className="w-8 h-8 text-white" />
-          </div>
-
-          <div className="text-center">
-            <h1 className="text-2xl font-bold text-foreground">Proctored Assessment</h1>
-            <p className="text-muted-foreground text-sm mt-1">
-              {isFinal ? "Final Exam" : `Module ${moduleId}`} · {domain} · {level}
-            </p>
-          </div>
-
-          <div className="w-full bg-secondary rounded-xl p-4 space-y-2 text-sm text-foreground">
-            <p className="font-semibold text-foreground mb-3">This exam monitors:</p>
-            {[
-              { icon: <Camera className="w-4 h-4" />, text: "Webcam — face presence & head direction" },
-              { icon: <Eye className="w-4 h-4" />, text: "Eye / expression analysis via AI" },
-              { icon: <Users className="w-4 h-4" />, text: "Multiple people in frame" },
-              { icon: <MonitorOff className="w-4 h-4" />, text: "Tab switches & window focus loss" },
-            ].map((item, i) => (
-              <div key={i} className="flex items-center gap-3 text-muted-foreground">
-                <span style={{ color: "var(--enliven-purple)" }}>{item.icon}</span>
-                {item.text}
-              </div>
-            ))}
-          </div>
-
-          <p className="text-xs text-center font-medium" style={{ color: "var(--destructive)" }}>
-            Camera access is required — you cannot proceed without it.
+  /* ══════════════════════════════════════════════════════════
+     RENDER — PERMISSION SCREEN
+  ══════════════════════════════════════════════════════════ */
+  if (phase === "permission") return (
+    <div className="min-h-screen bg-background flex items-center justify-center p-6">
+      <div className="bg-card border border-border rounded-2xl shadow-xl max-w-md w-full p-8 flex flex-col items-center gap-5">
+        <div className="w-16 h-16 rounded-full flex items-center justify-center"
+          style={{ background: "var(--enliven-deep-purple, #2B124C)" }}>
+          <ShieldCheck className="w-8 h-8 text-white" />
+        </div>
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-foreground">Proctored Assessment</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {isFinal ? "Final Exam" : `Module ${moduleId}`} · {domain} · {level}
           </p>
-
-          {camError && (
-            <div className="w-full bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
-              {camError}
+        </div>
+        <div className="w-full bg-secondary rounded-xl p-4 space-y-2.5 text-sm">
+          <p className="font-semibold text-foreground mb-2">This exam monitors:</p>
+          {[
+            { icon: <Camera className="w-4 h-4"/>,     text: "Webcam — face presence & position (AI)" },
+            { icon: <Eye className="w-4 h-4"/>,        text: "Head direction & expressions" },
+            { icon: <Users className="w-4 h-4"/>,      text: "Multiple people in frame" },
+            { icon: <MonitorOff className="w-4 h-4"/>, text: "Tab switches" },
+          ].map((item, i) => (
+            <div key={i} className="flex items-center gap-3 text-muted-foreground">
+              <span style={{ color: "var(--enliven-purple, #582B5B)" }}>{item.icon}</span>
+              {item.text}
             </div>
-          )}
-
-          {/* Hidden video for warm-up */}
-          <video ref={videoRef} style={{ display: "none" }} muted playsInline />
-
-          <Button
-            className="w-full h-11 text-base font-semibold"
-            style={{ background: "var(--enliven-deep-purple)", color: "#fff" }}
-            onClick={requestCamera}
-          >
-            Allow Camera & Continue
-          </Button>
+          ))}
         </div>
-      </div>
-    );
-  }
-
-  /* ── LOADING SCREEN ── */
-  if (phase === "loading") {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="w-12 h-12 border-4 border-border rounded-full mx-auto animate-spin"
-            style={{ borderTopColor: "var(--enliven-purple)" }} />
-          <p className="text-muted-foreground text-sm">
-            {faceApiReady ? "Generating questions…" : "Loading AI proctoring models…"}
-          </p>
-        </div>
+        <p className="text-xs text-center font-semibold text-destructive">
+          Camera access is required — you cannot proceed without it.
+        </p>
+        {camError && (
+          <div className="w-full bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+            {camError}
+          </div>
+        )}
         <video ref={videoRef} style={{ display: "none" }} muted playsInline />
+        <Button className="w-full h-11 text-base font-semibold text-white"
+          style={{ background: "var(--enliven-deep-purple, #2B124C)" }}
+          onClick={requestCamera}>
+          Allow Camera & Continue
+        </Button>
       </div>
-    );
-  }
+    </div>
+  );
 
-  /* ── READY SCREEN ── */
-  if (phase === "ready") {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-6">
-        <div className="bg-card border border-border rounded-2xl shadow-xl max-w-md w-full p-8 flex flex-col items-center gap-5">
-          <h2 className="text-xl font-bold text-foreground">Ready to Begin?</h2>
+  /* ── LOADING ── */
+  if (phase === "loading") return (
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
+      <div className="w-12 h-12 border-4 border-border rounded-full animate-spin"
+        style={{ borderTopColor: "var(--enliven-purple, #582B5B)" }} />
+      <p className="text-muted-foreground text-sm">
+        {modelsReady ? "Generating your questions…" : "Loading AI proctoring models…"}
+      </p>
+      <video ref={videoRef} style={{ display: "none" }} muted playsInline />
+    </div>
+  );
 
-          <div className="w-full rounded-xl overflow-hidden border border-border aspect-video bg-black">
-            <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
-          </div>
-
-          <div className="flex items-center gap-2 text-sm" style={{ color: "var(--success)" }}>
-            <CheckCircle2 className="w-4 h-4" />
-            Camera is active
-          </div>
-
-          <div className="w-full bg-secondary rounded-xl p-4 grid grid-cols-3 gap-3 text-center text-sm">
-            <div>
-              <p className="font-bold text-foreground text-lg">{questions.length}</p>
-              <p className="text-muted-foreground">Questions</p>
-            </div>
-            <div>
-              <p className="font-bold text-foreground text-lg">{fmt(timeLeft)}</p>
-              <p className="text-muted-foreground">Time Limit</p>
-            </div>
-            <div>
-              <p className="font-bold text-foreground text-lg">60%</p>
-              <p className="text-muted-foreground">Pass Mark</p>
-            </div>
-          </div>
-
-          <Button
-            className="w-full h-11 font-semibold text-base"
-            style={{ background: "var(--enliven-deep-purple)", color: "#fff" }}
-            onClick={startExam}
-          >
-            Start Assessment
-          </Button>
+  /* ── READY ── */
+  if (phase === "ready") return (
+    <div className="min-h-screen bg-background flex items-center justify-center p-6">
+      <div className="bg-card border border-border rounded-2xl shadow-xl max-w-md w-full p-8 flex flex-col items-center gap-5">
+        <h2 className="text-xl font-bold text-foreground">Ready to Begin?</h2>
+        <div className="w-full rounded-2xl overflow-hidden border border-border aspect-video bg-black">
+          <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
         </div>
+        <div className="flex items-center gap-2 text-sm" style={{ color: "#10b981" }}>
+          <CheckCircle2 className="w-4 h-4" />
+          Camera active — face detection is ready
+        </div>
+        <div className="w-full bg-secondary rounded-xl p-4 grid grid-cols-3 gap-3 text-center">
+          {[
+            { val: questions.length, label: "Questions" },
+            { val: fmt(timeLeft),    label: "Time Limit" },
+            { val: "60%",            label: "Pass Mark"  },
+          ].map(({ val, label }) => (
+            <div key={label}>
+              <p className="font-bold text-foreground text-lg">{val}</p>
+              <p className="text-muted-foreground text-xs">{label}</p>
+            </div>
+          ))}
+        </div>
+        <Button className="w-full h-11 font-semibold text-base text-white"
+          style={{ background: "var(--enliven-deep-purple, #2B124C)" }}
+          onClick={() => { startedAt.current = new Date(); setPhase("taking"); }}>
+          Start Assessment
+        </Button>
       </div>
-    );
-  }
+    </div>
+  );
 
-  /* ── SUBMITTED / RESULTS SCREEN ── */
+  /* ══════════════════════════════════════════════════════════
+     RENDER — SUBMITTED / RESULTS
+  ══════════════════════════════════════════════════════════ */
   if (phase === "submitted" && result) {
     const { score, passed, flagged, correct, total, violations: v } = result;
-
     return (
       <div className="min-h-screen bg-background p-6">
         {showPopup && earnedBadge && (
-          <BadgePopup
-            badge={earnedBadge}
+          <BadgePopup badge={earnedBadge}
             onClose={() => setShowPopup(false)}
-            onCollect={() => { setShowPopup(false); navigate("/profile"); }}
-          />
+            onCollect={() => { setShowPopup(false); navigate("/profile"); }} />
         )}
+        <div className="max-w-2xl mx-auto space-y-5">
 
-        <div className="max-w-2xl mx-auto space-y-6">
           {/* Score card */}
           <div className="bg-card border border-border rounded-2xl p-8 text-center space-y-4 shadow-lg">
-            <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto text-white`}
-              style={{ background: passed ? "var(--success)" : "var(--destructive)" }}>
-              {passed
-                ? <CheckCircle2 className="w-10 h-10" />
-                : <XCircle className="w-10 h-10" />}
+            <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto"
+              style={{ background: passed ? "#10b981" : "#ef4444" }}>
+              {passed ? <CheckCircle2 className="w-10 h-10 text-white" /> : <XCircle className="w-10 h-10 text-white" />}
             </div>
-
             <div>
               <h1 className="text-3xl font-bold text-foreground">
-                {passed ? (isFinal ? "Course Completed! 🎉" : "Test Passed! ⭐") : "Test Failed"}
+                {passed ? (isFinal ? "Course Complete! 🎉" : "Test Passed! ⭐") : "Test Failed"}
               </h1>
               <p className="text-muted-foreground text-sm mt-1">
                 {passed
                   ? isFinal ? "You've mastered this course!" : "Next module is now unlocked."
-                  : "Score at least 60% to continue."}
+                  : "You need 60% to pass. Review the module and try again."}
               </p>
             </div>
-
-            <div className="text-6xl font-extrabold" style={{ color: passed ? "var(--success)" : "var(--destructive)" }}>
+            <p className="text-6xl font-extrabold" style={{ color: passed ? "#10b981" : "#ef4444" }}>
               {score}%
-            </div>
+            </p>
             <p className="text-muted-foreground">{correct} / {total} correct</p>
           </div>
 
-          {/* Violations summary */}
-          <div className="bg-card border border-border rounded-2xl p-6 space-y-3 shadow">
-            <h2 className="font-semibold text-foreground flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4" style={{ color: "var(--enliven-purple)" }} />
+          {/* Proctoring report */}
+          <div className="bg-card border border-border rounded-2xl p-5 space-y-3 shadow-sm">
+            <h2 className="font-semibold text-foreground flex items-center gap-2 text-sm">
+              <ShieldCheck className="w-4 h-4" style={{ color: "var(--enliven-purple, #582B5B)" }} />
               Proctoring Report
             </h2>
-
             {flagged && (
-              <div className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg"
-                style={{ background: "rgba(239,68,68,0.08)", color: "var(--destructive)", border: "1px solid rgba(239,68,68,0.2)" }}>
+              <div className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-red-50 text-red-700 border border-red-200">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
                 This attempt has been flagged for review.
               </div>
             )}
-
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {[
-                { label: "Tab Switches",     val: v.tabSwitches },
+                { label: "Tab Switches",      val: v.tabSwitches     },
                 { label: "Face Not Detected", val: v.faceNotDetected },
-                { label: "Multiple Faces",    val: v.multipleFaces },
-                { label: "Looking Away",      val: v.lookingAway },
+                { label: "Multiple Faces",    val: v.multipleFaces   },
+                { label: "Looking Away",      val: v.lookingAway     },
                 { label: "Expression Alerts", val: v.expressionAlert },
               ].map(({ label, val }) => (
                 <div key={label} className="bg-secondary rounded-xl p-3 text-center">
@@ -649,40 +531,29 @@ export default function AssessmentPage() {
 
           {/* Actions */}
           <div className="flex gap-3">
-            <Button
-              variant="outline"
-              className="flex-1 h-11"
+            <Button variant="outline" className="flex-1 h-11"
               onClick={() => {
-                // Reset everything for retake
-                vRef.current = { tabSwitches: 0, faceNotDetected: 0, multipleFaces: 0, lookingAway: 0, expressionAlert: 0, noCamera: false };
+                vRef.current = { tabSwitches:0, faceNotDetected:0, multipleFaces:0, lookingAway:0, expressionAlert:0, noCamera:false };
                 submittingRef.current = false;
                 setSelectedAnswers(Array(questions.length).fill(null));
-                setCurrentQ(0);
-                setViolationCount(0);
-                setResult(null);
+                setCurrentQ(0); setViolationCount(0); setResult(null);
                 setPhase("permission");
-              }}
-            >
-              <RotateCcw className="mr-2 w-4 h-4" />
-              Retake Test
+              }}>
+              <RotateCcw className="mr-2 w-4 h-4" /> Retake Test
             </Button>
 
             {passed && (
               isFinal ? (
-                <Button
-                  className="flex-1 h-11 font-semibold"
-                  style={{ background: "var(--enliven-deep-purple)", color: "#fff" }}
-                  onClick={() => earnedBadge && setShowPopup(true)}
-                >
-                  🎖️ View Badge
+                <Button className="flex-1 h-11 font-semibold text-white"
+                  style={{ background: "var(--enliven-deep-purple, #2B124C)" }}
+                  onClick={() => earnedBadge ? setShowPopup(true) : navigate("/dashboard")}>
+                  🎖️ {earnedBadge ? "View Badge" : "Go to Dashboard"}
                 </Button>
               ) : (
-                <Button
-                  className="flex-1 h-11 font-semibold"
-                  style={{ background: "var(--enliven-deep-purple)", color: "#fff" }}
-                  onClick={() => navigate(`/courses/${domain}/${level}`)}
-                >
-                  Continue Learning
+                <Button className="flex-1 h-11 font-semibold text-white"
+                  style={{ background: "var(--enliven-deep-purple, #2B124C)" }}
+                  onClick={() => navigate(`/courses/${domain}/${level}`)}>
+                  Continue Learning →
                 </Button>
               )
             )}
@@ -692,41 +563,36 @@ export default function AssessmentPage() {
     );
   }
 
-  /* ── TAKING EXAM SCREEN ── */
+  /* ══════════════════════════════════════════════════════════
+     RENDER — TAKING EXAM
+  ══════════════════════════════════════════════════════════ */
   return (
     <div className="min-h-screen bg-background">
 
       {/* Top bar */}
       <div className="sticky top-0 z-20 bg-card border-b border-border px-6 py-3 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-3">
-          <ShieldCheck className="w-5 h-5" style={{ color: "var(--enliven-purple)" }} />
+          <ShieldCheck className="w-5 h-5" style={{ color: "var(--enliven-purple, #582B5B)" }} />
           <span className="font-semibold text-foreground text-sm">
             {isFinal ? "Final Exam" : `Module ${moduleId} Assessment`}
           </span>
-          <span className="text-muted-foreground text-sm hidden sm:inline">· {domain} · {level}</span>
+          <span className="text-muted-foreground text-xs hidden sm:inline">· {domain} · {level}</span>
         </div>
-
         <div className="flex items-center gap-4">
-          {/* Progress */}
           <span className="text-sm text-muted-foreground hidden sm:inline">
             {answeredCount}/{questions.length} answered
           </span>
-
-          {/* Timer */}
           <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold tabular-nums
             ${isUrgent ? "bg-red-50 text-red-600 border border-red-200" : "bg-secondary text-foreground"}`}>
-            <Clock className="w-3.5 h-3.5" />
-            {fmt(timeLeft)}
+            <Clock className="w-3.5 h-3.5" /> {fmt(timeLeft)}
           </div>
         </div>
       </div>
 
       {/* Progress bar */}
       <div className="h-1 bg-secondary">
-        <div
-          className="h-full transition-all duration-300"
-          style={{ width: `${progress}%`, background: "var(--enliven-purple)" }}
-        />
+        <div className="h-full transition-all duration-300"
+          style={{ width: `${progress}%`, background: "var(--enliven-purple, #582B5B)" }} />
       </div>
 
       {/* Violation banner */}
@@ -734,63 +600,48 @@ export default function AssessmentPage() {
         <div className="bg-red-50 border-b border-red-200 px-6 py-2.5 text-sm font-medium text-red-700 flex items-center gap-2">
           <AlertTriangle className="w-4 h-4 shrink-0" />
           {violationBanner}
-          <span className="ml-auto text-xs font-normal text-red-500">
-            {violationCount}/{MAX_VIOLATIONS} violations
-          </span>
+          <span className="ml-auto text-xs text-red-500">{violationCount}/{MAX_VIOLATIONS} violations</span>
         </div>
       )}
 
-      {/* Main content */}
       <div className="max-w-5xl mx-auto p-6 grid lg:grid-cols-[1fr,280px] gap-6">
 
         {/* ── LEFT: Question panel ── */}
         <div className="space-y-5">
-          {/* Question header */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="px-3 py-1 rounded-full text-xs font-semibold text-white"
-                style={{ background: "var(--enliven-purple)" }}>
-                Question {currentQ + 1} of {questions.length}
+          <div className="flex items-center gap-3">
+            <span className="px-3 py-1 rounded-full text-xs font-semibold text-white"
+              style={{ background: "var(--enliven-purple, #582B5B)" }}>
+              Question {currentQ + 1} of {questions.length}
+            </span>
+            {questions[currentQ]?.difficulty && (
+              <span className="text-xs text-muted-foreground">
+                {"★".repeat(questions[currentQ].difficulty)}{"☆".repeat(5 - questions[currentQ].difficulty)}
               </span>
-              {questions[currentQ]?.difficulty && (
-                <span className="text-xs text-muted-foreground">
-                  Difficulty: {"★".repeat(questions[currentQ].difficulty)}{"☆".repeat(5 - questions[currentQ].difficulty)}
-                </span>
-              )}
-            </div>
+            )}
           </div>
 
-          {/* Question card */}
           <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
             <p className="text-foreground text-lg font-medium leading-relaxed mb-6">
               {questions[currentQ]?.question}
             </p>
-
             <div className="space-y-3">
               {questions[currentQ]?.options.map((opt, i) => {
-                const isSelected = selectedAnswers[currentQ] === i;
-                const letters = ["A", "B", "C", "D"];
+                const sel = selectedAnswers[currentQ] === i;
                 return (
-                  <button
-                    key={i}
-                    onClick={() => {
-                      const arr = [...selectedAnswers];
-                      arr[currentQ] = i;
-                      setSelectedAnswers(arr);
-                    }}
-                    className="w-full text-left flex items-start gap-4 p-4 rounded-xl border transition-all duration-150"
+                  <button key={i}
+                    onClick={() => { const a=[...selectedAnswers]; a[currentQ]=i; setSelectedAnswers(a); }}
+                    className="w-full text-left flex items-start gap-4 p-4 rounded-xl border transition-all"
                     style={{
-                      borderColor: isSelected ? "var(--enliven-purple)" : "var(--border)",
-                      background:  isSelected ? "rgba(88,43,91,0.06)" : "var(--card)",
-                      color:       "var(--foreground)",
-                    }}
-                  >
+                      borderColor: sel ? "var(--enliven-purple,#582B5B)" : "var(--border)",
+                      background:  sel ? "rgba(88,43,91,0.07)" : "var(--card)",
+                      color: "var(--foreground)",
+                    }}>
                     <span className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
                       style={{
-                        background: isSelected ? "var(--enliven-purple)" : "var(--secondary)",
-                        color:      isSelected ? "#fff" : "var(--muted-foreground)",
+                        background: sel ? "var(--enliven-purple,#582B5B)" : "var(--secondary)",
+                        color: sel ? "#fff" : "var(--muted-foreground)",
                       }}>
-                      {letters[i]}
+                      {["A","B","C","D"][i]}
                     </span>
                     <span className="text-sm leading-relaxed pt-0.5">{opt}</span>
                   </button>
@@ -799,29 +650,18 @@ export default function AssessmentPage() {
             </div>
           </div>
 
-          {/* Navigation */}
           <div className="flex justify-between">
-            <Button
-              variant="outline"
-              disabled={currentQ === 0}
-              onClick={() => setCurrentQ(q => q - 1)}
-            >
+            <Button variant="outline" disabled={currentQ===0} onClick={()=>setCurrentQ(q=>q-1)}>
               ← Previous
             </Button>
-
             {currentQ < questions.length - 1 ? (
-              <Button
-                style={{ background: "var(--enliven-deep-purple)", color: "#fff" }}
-                onClick={() => setCurrentQ(q => q + 1)}
-              >
-                Next <ChevronRight className="ml-1 w-4 h-4" />
+              <Button style={{ background:"var(--enliven-deep-purple,#2B124C)", color:"#fff" }}
+                onClick={()=>setCurrentQ(q=>q+1)}>
+                Next <ChevronRight className="ml-1 w-4 h-4"/>
               </Button>
             ) : (
-              <Button
-                onClick={handleSubmit}
-                disabled={saving}
-                style={{ background: "var(--success)", color: "#fff" }}
-              >
+              <Button style={{ background:"#10b981", color:"#fff" }}
+                onClick={handleSubmit} disabled={saving}>
                 {saving ? "Submitting…" : "Submit Assessment"}
               </Button>
             )}
@@ -834,32 +674,16 @@ export default function AssessmentPage() {
             </p>
             <div className="flex flex-wrap gap-2">
               {questions.map((_, i) => {
-                const ans = selectedAnswers[i] !== null;
-                const cur = i === currentQ;
+                const ans = selectedAnswers[i] !== null, cur = i===currentQ;
                 return (
-                  <button
-                    key={i}
-                    onClick={() => setCurrentQ(i)}
+                  <button key={i} onClick={()=>setCurrentQ(i)}
                     className="w-9 h-9 rounded-lg text-xs font-semibold transition-all"
                     style={{
-                      background: cur
-                        ? "var(--enliven-purple)"
-                        : ans
-                        ? "rgba(88,43,91,0.12)"
-                        : "var(--secondary)",
-                      color: cur
-                        ? "#fff"
-                        : ans
-                        ? "var(--enliven-purple)"
-                        : "var(--muted-foreground)",
-                      border: cur
-                        ? "2px solid var(--enliven-purple)"
-                        : ans
-                        ? "2px solid rgba(88,43,91,0.3)"
-                        : "2px solid transparent",
-                    }}
-                  >
-                    {i + 1}
+                      background: cur?"var(--enliven-purple,#582B5B)":ans?"rgba(88,43,91,0.12)":"var(--secondary)",
+                      color: cur?"#fff":ans?"var(--enliven-purple,#582B5B)":"var(--muted-foreground)",
+                      border: cur?"2px solid var(--enliven-purple,#582B5B)":ans?"2px solid rgba(88,43,91,0.3)":"2px solid transparent",
+                    }}>
+                    {i+1}
                   </button>
                 );
               })}
@@ -869,75 +693,53 @@ export default function AssessmentPage() {
 
         {/* ── RIGHT: Proctoring sidebar ── */}
         <div className="space-y-4">
-          {/* Status card */}
           <div className="bg-card border border-border rounded-2xl p-4 shadow-sm">
             <h3 className="text-sm font-semibold flex items-center gap-2 text-foreground mb-3">
-              <ShieldCheck className="w-4 h-4" style={{ color: "var(--enliven-purple)" }} />
+              <ShieldCheck className="w-4 h-4" style={{color:"var(--enliven-purple,#582B5B)"}}/>
               Proctoring Status
             </h3>
-
-            <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg mb-3`}
+            <div className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg mb-3"
               style={{
-                background: proctorStatus === "active" ? "rgba(16,185,129,0.08)" : "rgba(239,68,68,0.08)",
-                color: proctorStatus === "active" ? "var(--success)" : "var(--destructive)",
-                border: `1px solid ${proctorStatus === "active" ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)"}`,
+                background: proctorStatus==="active" ? "rgba(16,185,129,0.08)" : "rgba(239,68,68,0.08)",
+                color:      proctorStatus==="active" ? "#10b981" : "#ef4444",
+                border: `1px solid ${proctorStatus==="active" ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)"}`,
               }}>
               <span className="w-2 h-2 rounded-full animate-pulse"
-                style={{ background: proctorStatus === "active" ? "var(--success)" : "var(--destructive)" }} />
-              {proctorStatus === "active"
-                ? "Camera active"
-                : proctorStatus === "initializing"
-                ? "Starting camera…"
-                : "Camera denied"}
+                style={{background: proctorStatus==="active" ? "#10b981" : "#ef4444"}}/>
+              {proctorStatus==="active" ? "Camera active" : "Camera not available"}
             </div>
-
-            {/* Violations meter */}
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>Violations</span>
                 <span className="font-semibold text-foreground">{violationCount} / {MAX_VIOLATIONS}</span>
               </div>
               <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all"
+                <div className="h-full rounded-full transition-all"
                   style={{
-                    width: `${Math.min((violationCount / MAX_VIOLATIONS) * 100, 100)}%`,
-                    background: violationCount >= 3 ? "var(--destructive)" : violationCount >= 2 ? "var(--warning)" : "var(--success)",
-                  }}
-                />
+                    width:`${Math.min((violationCount/MAX_VIOLATIONS)*100,100)}%`,
+                    background: violationCount>=3?"#ef4444":violationCount>=2?"#f59e0b":"#10b981",
+                  }}/>
               </div>
             </div>
           </div>
 
-          {/* Webcam feed */}
           <div className="bg-card border border-border rounded-2xl p-4 shadow-sm">
             <h3 className="text-sm font-semibold flex items-center gap-2 text-foreground mb-3">
-              <Camera className="w-4 h-4" style={{ color: "var(--enliven-purple)" }} />
+              <Camera className="w-4 h-4" style={{color:"var(--enliven-purple,#582B5B)"}}/>
               Webcam
             </h3>
             <div className="aspect-video bg-black rounded-xl overflow-hidden">
-              <video
-                ref={videoRef}
-                autoPlay
-                muted
-                playsInline
-                className="w-full h-full object-cover"
-              />
+              <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover"/>
             </div>
             <p className="text-[11px] text-muted-foreground mt-2 text-center">
               Keep your face visible at all times
             </p>
           </div>
 
-          {/* Submit from sidebar too */}
-          <Button
-            className="w-full h-11 font-semibold"
-            style={{ background: "var(--success)", color: "#fff" }}
+          <Button className="w-full h-11 font-semibold text-white" style={{background:"#10b981"}}
             onClick={handleSubmit}
-            disabled={saving || answeredCount < questions.length}
-          >
-            {saving
-              ? "Submitting…"
+            disabled={saving || answeredCount < questions.length}>
+            {saving ? "Submitting…"
               : answeredCount < questions.length
               ? `${questions.length - answeredCount} unanswered`
               : "Submit Assessment"}

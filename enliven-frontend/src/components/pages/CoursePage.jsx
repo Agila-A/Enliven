@@ -21,7 +21,7 @@ import {
   Download,
   LoaderCircle,
 } from "lucide-react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "../ui/button";
 import { ProgressBar } from "../ProgressBar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../ui/tabs";
@@ -75,6 +75,7 @@ const mapToObj = (m) => {
 export default function CoursePage() {
   const { domain, level } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();  // FIX: detect navigation back from assessment
   const courseId = useMemo(() => buildCourseId(domain, level), [domain, level]);
 
   const [sections, setSections] = useState([]);
@@ -392,6 +393,14 @@ export default function CoursePage() {
     });
   };
 
+  // FIX: whenever the user navigates back to this page (e.g. from AssessmentPage),
+  // re-fetch moduleStatus from the DB so newly-passed modules unlock immediately.
+  // This runs on every location.key change (every navigation to this page).
+  useEffect(() => {
+    if (!courseId) return;
+    refreshModuleStatus();
+  }, [location.key]); // eslint-disable-line
+
   // Called when the user returns from the assessment page after passing a module test.
   // We refresh moduleStatus from the DB so the next module unlocks immediately.
   const refreshModuleStatus = async () => {
@@ -403,7 +412,38 @@ export default function CoursePage() {
       );
       if (pres.ok) {
         const pjson = await pres.json();
-        setModuleStatus(pjson.moduleStatus || {});
+        const newStatus = pjson.moduleStatus || {};
+        setModuleStatus(newStatus);
+
+        // FIX: also unlock sections in state based on new moduleStatus
+        // so lessons become clickable without a full page reload
+        setSections(prev => {
+          const updated = prev.map((sec, i) => {
+            const isFirst  = i === 0;
+            const prevSec  = i > 0 ? prev[i - 1] : null;
+            const unlocked = isFirst || (prevSec && newStatus[prevSec.id] === "completed");
+
+            if (!unlocked) return sec; // still locked — no change
+
+            // Already has unlocked lessons — don't reset their status
+            const hasUnlocked = sec.lessons.some(l => l.status !== "locked");
+            if (hasUnlocked) return sec;
+
+            // Unlock first video in this section
+            let firstDone = false;
+            return {
+              ...sec,
+              lessons: sec.lessons.map(l => {
+                if (!firstDone && l.type === "video") {
+                  firstDone = true;
+                  return { ...l, status: "current" };
+                }
+                return l;
+              }),
+            };
+          });
+          return updated;
+        });
       }
     } catch (e) {
       console.error("moduleStatus refresh error:", e);
@@ -517,10 +557,17 @@ export default function CoursePage() {
       <div className="w-96 bg-card border-l overflow-y-auto p-6">
         <h2 className="text-xl font-semibold mb-4">Course Content</h2>
 
-        {sections.map((section) => {
-          const isLocked =
-            section.id !== "1" &&
-            !section.lessons.some((l) => l.status !== "locked");
+        {sections.map((section, sIdx) => {
+          // FIX: derive lock state from DB moduleStatus at render time
+          // so it updates immediately when refreshModuleStatus() is called.
+          // Module 1 is always unlocked.
+          // Module N is unlocked only if module N-1's test is "completed" in DB.
+          const isFirstModule = sIdx === 0;
+          const prevSection   = sIdx > 0 ? sections[sIdx - 1] : null;
+          const prevPassed    = prevSection
+            ? moduleStatus[prevSection.id] === "completed"
+            : false;
+          const isLocked = !isFirstModule && !prevPassed;
 
           return (
             <div key={section.id} className="border rounded-lg mb-2">
