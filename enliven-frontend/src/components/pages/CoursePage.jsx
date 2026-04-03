@@ -7,6 +7,7 @@ import ReactMarkdown from "react-markdown";
 import {
   Play,
   CheckCircle,
+  CheckCircle2,
   Lock,
   ChevronDown,
   ChevronRight,
