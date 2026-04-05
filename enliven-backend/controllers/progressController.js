@@ -130,7 +130,7 @@ export const getProgressForCourse = async (req, res) => {
 export async function completeModule(req, res) {
   try {
     const userId = req.userId;
-    const { courseId, moduleId } = req.body;
+    const { courseId, moduleId, status = "completed" } = req.body;
 
     if (!courseId || !moduleId)
       return res.status(400).json({ success: false, message: "courseId and moduleId are required" });
@@ -138,7 +138,7 @@ export async function completeModule(req, res) {
     // Use findOneAndUpdate with dot-notation on the Map field
     const updated = await Progress.findOneAndUpdate(
       { userId, courseId },
-      { $set: { [`moduleStatus.${moduleId}`]: "completed" } },
+      { $set: { [`moduleStatus.${moduleId}`]: status } },
       { upsert: true, new: true }
     );
 
@@ -180,7 +180,8 @@ export const saveAssessmentProgress = async (req, res) => {
         });
       }
       const map = normalizeMap(doc.moduleStatus);
-      map[String(moduleId)] = "completed";
+      // default to completed if not specified explicitly
+      map[String(moduleId)] = req.body.status || "completed";
       doc.moduleStatus = map;
     }
 

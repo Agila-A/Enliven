@@ -141,12 +141,105 @@ export async function getModuleQuestions(req, res) {
       return res.status(400).json({ success: false, message: "domain and level are required" });
 
     const topic = `Module ${moduleId} of ${domain} at ${level} level`;
-    const questions = await generateQuestionsWithGroq({ topic, count: 10 });
+    const questions = await generateQuestionsWithGroq({ topic, count: 5 });
 
     return res.json({ success: true, questions, moduleId, mode: "module" });
   } catch (err) {
     console.error("getModuleQuestions error:", err);
     return res.status(500).json({ success: false, message: "Failed to generate module questions" });
+  }
+}
+
+/* ─── GET MODULE CODING QUESTIONS ─────────────────────────────── */
+export async function getModuleCodingQuestions(req, res) {
+  try {
+    const { moduleId } = req.params;
+    const { domain, level } = req.query;
+
+    if (!domain || !level)
+      return res.status(400).json({ success: false, message: "domain and level are required" });
+
+    const topic = `Module ${moduleId} of ${domain} (${level})`;
+    
+    // Determine type based on topic name
+    const isUI = /css|html|ui|ux|design|styling|layout/i.test(topic + " " + domain);
+    const type = isUI ? "html_css" : "javascript";
+
+    const groq = createGroqClient();
+    const prompt = `
+Generate EXACTLY 2 coding problems for: "${topic}"
+Context Domain: ${domain}
+Selected Type: ${type} (Strictly follow this type)
+
+Requirements:
+- Problems must be practical and real-world oriented
+- Difficulty: EXACTLY 2 EASY problems (No medium/hard)
+- For "javascript": 
+    - The user's function is ALWAYS named "solution".
+    - "testCases": [{ "input": [arg1, arg2], "expected": value }] where "input" is an array of arguments.
+    - Description must precisely specify what the function returns.
+- For "html_css": 
+    - "testCases": [{ "selector": ".class", "property": "color", "expected": "red" }]
+    - Target basic layouts and styling like buttons, cards, or flexbox alignment.
+- IMPORTANT: Ensure the Sample Input/Output matches the first Hidden Test Case exactly.
+- IMPORTANT: Instructions must be unambiguous.
+- IMPORTANT: Test case inputs must be SIMPLE strings, numbers, or arrays. NO code snippets or logic in test case inputs.
+- WARNING: Do not mix up logic (e.g., do not describe 'vowels' then test for 'lowercase'). Be consistent!
+- VALIDATION: Double check that the "expected" values are mathematically/logically correct.
+
+Return response as a SINGLE JSON OBJECT (do NOT wrap in an array):
+{
+  "problems": [
+    {
+      "title": "string",
+      "description": "string",
+      "type": "${type}",
+      "difficulty": "easy",
+      "inputFormat": "string",
+      "outputFormat": "string",
+      "constraints": "string",
+      "sampleInput": "string",
+      "sampleOutput": "string",
+      "testCases": [...]
+    }
+  ]
+}
+`.trim();
+
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      messages: [
+        { role: "system", content: "You output only valid JSON arrays. No markdown, no explanation." },
+        { role: "user", content: prompt },
+      ],
+      response_format: { type: "json_object" }
+    });
+
+    const content = completion.choices?.[0]?.message?.content;
+    if (!content) throw new Error("Empty content from Groq");
+    
+    const data = JSON.parse(content);
+    
+    // Support various JSON structures Groq might return
+    const problems = Array.isArray(data) ? data : (data.problems || data.questions || data.items || []);
+
+    if (!problems || problems.length === 0) {
+      console.error("No problems in Groq response:", content);
+      throw new Error("No problems generated");
+    }
+
+    // Clean up problems (sometimes they come with markdown)
+    const cleaned = problems.map(p => ({
+      ...p,
+      title: p.title?.replace(/#|`|\*/g, "").trim()
+    }));
+
+    console.log("GENERATED PROBLEMS:", JSON.stringify(cleaned, null, 2));
+
+    return res.json({ success: true, problems: cleaned, moduleId, type });
+  } catch (err) {
+    console.error("getModuleCodingQuestions error:", err);
+    return res.status(500).json({ success: false, message: "Failed to generate coding problems" });
   }
 }
 
@@ -186,8 +279,10 @@ export async function saveAttempt(req, res) {
     const {
       courseId,
       moduleId,
+      type         = "mcq",
       questions    = [],
       userAnswers  = [],
+      codingSolutions = [],
       score        = 0,
       violations   = {},
       flagged      = false,
@@ -206,8 +301,10 @@ export async function saveAttempt(req, res) {
       userId,
       courseId,
       moduleId,
+      type,
       questions,
       userAnswers,
+      codingSolutions,
       score,
       passed,
       violations: {

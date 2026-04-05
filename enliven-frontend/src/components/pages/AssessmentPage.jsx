@@ -195,7 +195,9 @@ export default function AssessmentPage() {
 
         setQuestions(data.questions);
         setSelectedAnswers(Array(data.questions.length).fill(null));
-        setTimeLeft(data.questions.length * 90);
+        // Use 5 questions for modules as requested
+        const qCount = isFinal ? data.questions.length : 5;
+        setTimeLeft(qCount * 90);
         setPhase("ready");
       } catch (err) {
         console.error(err);
@@ -408,7 +410,7 @@ export default function AssessmentPage() {
         await fetch(`${import.meta.env.VITE_API_URL}/api/progress/complete-module`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ courseId, moduleId }),
+          body: JSON.stringify({ courseId, moduleId, status: "mcq_passed" }),
         });
       } catch (err) {
         console.error("complete-module failed:", err);
@@ -679,8 +681,8 @@ export default function AssessmentPage() {
                 </button>
               ) : (
                 <button className="flex-1 py-4 font-bold text-white bg-red rounded-xl shadow-md hover:shadow-lg hover:bg-red/90 transition-all transform hover:-translate-y-0.5 flex items-center justify-center"
-                  onClick={() => navigate(`/courses/${domain}/${level}`)}>
-                  Continue Learning <ChevronRight className="ml-2 w-5 h-5"/>
+                  onClick={() => navigate(`/coding-assessment?module=${moduleId}&domain=${domain}&level=${level}`)}>
+                  Next: Take Coding Test <ChevronRight className="ml-2 w-5 h-5"/>
                 </button>
               )
             )}

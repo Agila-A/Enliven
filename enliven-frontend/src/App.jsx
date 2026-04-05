@@ -17,6 +17,7 @@ import DomainSelect from "./components/pages/DomainSelect";
 import InitialAssessment from "./components/pages/InitialAssessment";
 import RoadmapPage from "./components/pages/Roadmap";
 import StudyBuddyChat from "./components/pages/StudyBuddyChat";
+import CodingAssessment from "./components/pages/CodingAssessment";
 
 const isLogged = () => !!localStorage.getItem("token");
 
@@ -101,6 +102,19 @@ export default function App() {
             isLogged() ? (
               <AppLayout>
                 <AssessmentPage />
+              </AppLayout>
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
+        />
+
+        <Route
+          path="/coding-assessment"
+          element={
+            isLogged() ? (
+              <AppLayout>
+                <CodingAssessment />
               </AppLayout>
             ) : (
               <Navigate to="/login" />

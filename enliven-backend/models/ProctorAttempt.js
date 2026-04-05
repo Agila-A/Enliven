@@ -6,9 +6,17 @@ const attemptSchema = new mongoose.Schema(
     userId:   { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     courseId: { type: String, required: true }, // e.g. "webdevelopment-beginner"
     moduleId: { type: String, required: true }, // e.g. "1" or "final"
+    type:     { type: String, enum: ["mcq", "coding"], default: "mcq" },
 
     questions:   { type: Array, default: [] },
     userAnswers: { type: Array, default: [] },
+    codingSolutions: [
+      {
+        title:  String,
+        code:   String,
+        passed: Boolean
+      }
+    ],
     score:       { type: Number, default: 0 },      // percentage 0–100
     passed:      { type: Boolean, default: false },  // score >= 60
 
