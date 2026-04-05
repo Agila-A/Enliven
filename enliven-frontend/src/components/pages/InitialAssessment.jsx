@@ -208,11 +208,22 @@ export default function InitialAssessment() {
         </div>
 
         {/* Heading */}
-        <div className="flex items-center space-x-3 mb-6">
-            <Brain className="w-8 h-8 text-yellow" />
-            <h2 className="text-3xl font-bold text-foreground">
-                Let’s understand your level
-            </h2>
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+            <div className="flex items-center space-x-3">
+                <Brain className="w-8 h-8 text-yellow" />
+                <h2 className="text-3xl font-bold text-foreground">
+                    Technical Assessment
+                </h2>
+            </div>
+            {q.difficulty && (
+                <div className={`px-4 py-1.5 rounded-full text-sm font-bold uppercase tracking-widest border-2 ${
+                    q.difficulty === 'easy' ? 'bg-green/10 text-green border-green/20' :
+                    q.difficulty === 'medium' ? 'bg-yellow/10 text-yellow border-yellow/20' :
+                    'bg-red/10 text-red border-red/20'
+                }`}>
+                    {q.difficulty}
+                </div>
+            )}
         </div>
 
         {/* Question */}
