@@ -14,7 +14,9 @@ import {
   FileText,
   Download,
   LoaderCircle,
-  BookOpen
+  BookOpen,
+  Code,
+  ShieldCheck
 } from "lucide-react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "../ui/button";
@@ -250,7 +252,8 @@ export default function CoursePage() {
   };
 
   const allModulesCompleted =
-    sections.length > 0 && sections.every(isSectionCompleted);
+    sections.length > 0 && 
+    sections.every(s => isSectionCompleted(s) && moduleStatus[s.topicId || s.id] === "completed");
 
   const saveProgress = async ({ topicId, videoProgressMap, currentIndex, videoCount }) => {
     try {
@@ -536,6 +539,59 @@ export default function CoursePage() {
               </div>
             </TabsContent>
           </Tabs>
+
+          {/* New: Next Steps Assessment Buttons in Main Viewer */}
+          {(() => {
+            const currentSection = sections.find(s => s.lessons.some(l => l.id === activeLesson?.id));
+            if (!currentSection || !isSectionCompleted(currentSection)) return null;
+            
+            const status = moduleStatus[currentSection.id];
+            
+            if (!status) {
+              return (
+                <div className="mt-10 p-8 bg-orange/10 border-2 border-dashed border-orange/30 rounded-[2rem] text-center">
+                  <ShieldCheck className="w-12 h-12 text-orange-600 mx-auto mb-4" />
+                  <h3 className="text-xl font-bold text-foreground mb-2">Theoretical Knowledge Check</h3>
+                  <p className="text-foreground/60 mb-6 font-medium">You've finished the lessons! Take the MCQ assessment to unlock the coding challenge.</p>
+                  <button
+                    onClick={() => navigate(`/assessment?module=${currentSection.id}&domain=${domain}&level=${level}`)}
+                    className="px-10 py-4 bg-orange-500 text-white font-bold rounded-2xl shadow-md hover:bg-orange-600 transition-all"
+                  >
+                    Start MCQ Assessment
+                  </button>
+                </div>
+              );
+            }
+            
+            if (status === "mcq_passed") {
+              return (
+                <div className="mt-10 p-8 bg-red/5 border-2 border-dashed border-red/20 rounded-[2rem] text-center">
+                  <Code className="w-12 h-12 text-red mx-auto mb-4" />
+                  <h3 className="text-xl font-bold text-foreground mb-2">Hands-on Practice</h3>
+                  <p className="text-foreground/60 mb-6 font-medium">MCQ passed! Now prove your skills with a real-world coding challenge.</p>
+                  <button
+                    onClick={() => navigate(`/coding-assessment?module=${currentSection.id}&domain=${domain}&level=${level}`)}
+                    className="px-10 py-4 bg-red text-white font-bold rounded-2xl shadow-md hover:bg-red/90 transition-all"
+                  >
+                    Start Coding Assessment
+                  </button>
+                </div>
+              );
+            }
+            
+            if (status === "completed") {
+              return (
+                <div className="mt-10 p-8 bg-green/5 border-2 border-dashed border-green/20 rounded-[2rem] text-center">
+                  <CheckCircle2 className="w-12 h-12 text-green mx-auto mb-4" />
+                  <h3 className="text-xl font-bold text-foreground mb-2">Module Mastered!</h3>
+                  <p className="text-foreground/60 mb-2 font-medium">You have successfully completed both assessments for this module.</p>
+                  <p className="text-green font-bold text-sm uppercase tracking-widest">Badge Earned 🎖️</p>
+                </div>
+              );
+            }
+            
+            return null;
+          })()}
         </div>
       </div>
 
@@ -602,22 +658,35 @@ export default function CoursePage() {
                     )
                   })}
 
-                  {/* Take Module Test */}
-                  {isSectionCompleted(section) &&
-                    moduleStatus[section.id] !== "completed" && (
-                      <div className="px-5 mt-4 mb-3">
-                        <button
-                          onClick={() =>
-                            navigate(
-                              `/assessment?module=${section.id}&domain=${domain}&level=${level}`
-                            )
-                          }
-                          className="w-full py-3 bg-red text-white font-bold rounded-xl shadow-md hover:bg-red/90 transition-all hover:-translate-y-0.5 tracking-wide"
-                        >
-                          Take Module Test
-                        </button>
-                      </div>
-                    )}
+                  {/* Assessment Stage */}
+                  {isSectionCompleted(section) && !moduleStatus[section.id] && (
+                    <div className="px-5 mt-4 mb-3">
+                      <button
+                        onClick={() => navigate(`/assessment?module=${section.id}&domain=${domain}&level=${level}`)}
+                        className="w-full py-3 bg-orange-500 text-white font-bold rounded-xl shadow-md hover:bg-orange-600 transition-all hover:-translate-y-0.5 text-sm uppercase tracking-wide"
+                      >
+                        Take MCQ Assessment
+                      </button>
+                    </div>
+                  )}
+
+                  {isSectionCompleted(section) && moduleStatus[section.id] === "mcq_passed" && (
+                    <div className="px-5 mt-4 mb-3">
+                      <button
+                        onClick={() => navigate(`/coding-assessment?module=${section.id}&domain=${domain}&level=${level}`)}
+                        className="w-full py-3 bg-red text-white font-bold rounded-xl shadow-md hover:bg-red/90 transition-all hover:-translate-y-0.5 text-sm uppercase tracking-wide flex items-center justify-center gap-2"
+                      >
+                        <Code size={16} /> Take Coding Test
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Status Badges */}
+                  {moduleStatus[section.id] === "mcq_passed" && (
+                    <div className="mx-5 mb-3 mt-4 py-2 px-4 bg-yellow/10 border border-yellow/20 text-yellow-700 font-bold uppercase tracking-wider rounded-xl text-[10px] text-center flex items-center justify-center gap-2">
+                       <CheckCircle2 className="w-3 h-3" /> MCQ Passed · Coding Pending
+                    </div>
+                  )}
 
                   {/* Passed Badge */}
                   {moduleStatus[section.id] === "completed" && (

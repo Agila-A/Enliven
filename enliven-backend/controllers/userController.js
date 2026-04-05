@@ -53,9 +53,9 @@ export const initialAssessment = async (req, res) => {
     }
 
     let results = {
-      easy: { correct: 0, total: 3 },
-      medium: { correct: 0, total: 4 },
-      hard: { correct: 0, total: 3 }
+      easy: { correct: 0, total: 2 },
+      medium: { correct: 0, total: 2 },
+      hard: { correct: 0, total: 1 }
     };
 
     user.currentAssessment.forEach((q, i) => {
@@ -67,15 +67,15 @@ export const initialAssessment = async (req, res) => {
     let skillLevel = "Beginner";
     const { easy, medium, hard } = results;
 
-    // Advanced: Strong across all levels (Easy 3, Medium 3-4, Hard 2-3)
-    if (easy.correct >= 2 && medium.correct >= 3 && hard.correct >= 2) {
+    // Advanced: Almost perfect (4-5 correct, must get hard or both medium)
+    if (easy.correct >= 1 && medium.correct >= 2 && hard.correct === 1) {
       skillLevel = "Advanced";
     }
-    // Intermediate: Good in Easy/Medium (Easy 2-3, Medium 2-4), Partial in Hard (1-2)
-    else if (easy.correct >= 2 && medium.correct >= 2) {
+    // Intermediate: Solid fundamentals (3-4 correct)
+    else if (easy.correct >= 2 && medium.correct >= 1) {
       skillLevel = "Intermediate";
     }
-    // Beginner: Otherwise (Mostly correct in Easy, Struggles with Medium/Hard)
+    // Beginner: Struggles (0-2 correct)
     else {
       skillLevel = "Beginner";
     }
@@ -116,18 +116,17 @@ INPUT:
 - Domain: ${domain}
 
 STEP 1 — Generate Questions:
-Create exactly 10 multiple-choice questions for the given domain.
+Create exactly 5 multiple-choice questions for the given domain.
 
 Requirements:
 - Questions must be strictly related to the selected domain
 - Difficulty must gradually increase:
-  - Questions 1–3 → Easy (basic fundamentals)
-  - Questions 4–7 → Medium (applied understanding)
-  - Questions 8–10 → Hard (advanced concepts)
+  - Questions 1–2 → Easy (basic fundamentals)
+  - Questions 3–4 → Medium (applied understanding)
+  - Question 5 → Hard (advanced concepts)
 - Each question must have exactly 4 options
 - Only one correct answer
 - Questions must be practical and real-world oriented
-- Avoid generic or theoretical questions
 
 STEP 3 — Return response in STRICT JSON format:
 

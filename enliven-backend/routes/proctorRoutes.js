@@ -11,8 +11,14 @@ import { requireAuth } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// Generate questions for a specific module test (10 Qs)
+// Generate questions for a specific module test (5 Qs)
 router.get("/questions/:moduleId", requireAuth, getModuleQuestions);
+
+// Generate coding problems for a specific module
+router.get("/questions/coding/:moduleId", requireAuth, (req, res, next) => {
+  // We'll define this in controller
+  import("../controllers/proctorController.js").then(m => m.getModuleCodingQuestions(req, res)).catch(next);
+});
 
 // Generate questions for the final exam (30 Qs)
 router.get("/final-questions", requireAuth, getFinalQuestions);
