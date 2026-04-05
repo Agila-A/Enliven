@@ -57,6 +57,16 @@ const userSchema = new mongoose.Schema(
         date:        String,
       },
     ],
+
+    // NEW: Store questions to verify answers later
+    currentAssessment: [
+      {
+        question:       String,
+        options:        [String],
+        correctAnswer:  String,
+        difficulty:     { type: String, enum: ["easy", "medium", "hard"] }
+      }
+    ],
   },
   { timestamps: true }
 );
