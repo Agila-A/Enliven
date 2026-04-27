@@ -1,6 +1,17 @@
 // models/User.js
 import mongoose from "mongoose";
 
+const enrollmentSchema = new mongoose.Schema(
+  {
+    courseId:       { type: String, required: true }, // "web-development-beginner"
+    domain:         { type: String, required: true }, // "web-development"
+    skillLevel:     { type: String, required: true }, // "beginner"
+    enrolledAt:     { type: Date,   default: Date.now },
+    lastAccessedAt: { type: Date,   default: null },
+  },
+  { _id: false }
+);
+
 const userSchema = new mongoose.Schema(
   {
     name:     { type: String, required: true, trim: true },
@@ -13,8 +24,16 @@ const userSchema = new mongoose.Schema(
       default: "student",
     },
 
+    // ── DEPRECATED (staging / migration fields) ────────────────
+    // These are kept so:
+    //   a) domain-selection + question generation still work
+    //   b) the one-time migration can read them to seed enrollments[0]
+    // New code should NOT read these for course routing; use enrollments[].
     domain:     { type: String, default: null },
     skillLevel: { type: String, default: null },
+
+    // ── MULTI-COURSE ENROLLMENTS ────────────────────────────────
+    enrollments: { type: [enrollmentSchema], default: [] },
 
     // Profile fields
     bio:      { type: String, default: "No bio added yet." },
@@ -24,9 +43,7 @@ const userSchema = new mongoose.Schema(
     // ── Streak fields ──────────────────────────────────────────
     streak:         { type: Number, default: 0 },
     longestStreak:  { type: Number, default: 0 },
-    // NEW: tracks the last calendar day the user was active (UTC midnight).
-    // Required for streak logic — without this we can't know if yesterday was visited.
-    lastActiveDate: { type: Date, default: null },
+    lastActiveDate: { type: Date,   default: null },
 
     // Saved Resources
     savedResources: [
@@ -58,14 +75,14 @@ const userSchema = new mongoose.Schema(
       },
     ],
 
-    // NEW: Store questions to verify answers later
+    // Store questions to verify answers later
     currentAssessment: [
       {
-        question:       String,
-        options:        [String],
-        correctAnswer:  String,
-        difficulty:     { type: String, enum: ["easy", "medium", "hard"] }
-      }
+        question:      String,
+        options:       [String],
+        correctAnswer: String,
+        difficulty:    { type: String, enum: ["easy", "medium", "hard"] },
+      },
     ],
   },
   { timestamps: true }

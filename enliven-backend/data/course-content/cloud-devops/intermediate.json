@@ -1,0 +1,49 @@
+{
+  "steps": [
+    {
+      "id": "infrastructure-as-code",
+      "step": 1,
+      "title": "Infrastructure as Code (Terraform)",
+      "links": [
+        "https://youtu.be/SLB_c_ayRMo?si=Gz0Wj3QvV6J4H9_T"
+      ],
+      "resources": []
+    },
+    {
+      "id": "ci-cd-pipelines",
+      "step": 2,
+      "title": "CI/CD Pipelines (GitHub Actions/Jenkins)",
+      "links": [
+        "https://youtu.be/62N8UiWUdQw?si=C8D2oG-N8D-K-XjS"
+      ],
+      "resources": []
+    },
+    {
+      "id": "kubernetes-basics",
+      "step": 3,
+      "title": "Kubernetes Fundamentals",
+      "links": [
+        "https://youtu.be/X48VuDVv0do?si=PzVv9-XzXzX-G-Q"
+      ],
+      "resources": []
+    },
+    {
+      "id": "monitoring-logging",
+      "step": 4,
+      "title": "Monitoring & Logging (Prometheus/Grafana)",
+      "links": [
+        "https://youtu.be/h4KntCtZ7uM?si=PzVv9-XzXzX-G-Q"
+      ],
+      "resources": []
+    },
+    {
+      "id": "serverless",
+      "step": 5,
+      "title": "Serverless Computing (AWS Lambda)",
+      "links": [
+        "https://youtu.be/eOBqarkdfnM?si=PzVv9-XzXzX-G-Q"
+      ],
+      "resources": []
+    }
+  ]
+}

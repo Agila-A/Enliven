@@ -10,23 +10,30 @@ function createGroqClient() {
 
 /*
   MAX messages to keep in the sliding window sent to Groq.
-  Keeps token usage predictable. We always include the full context object
-  separately via a second system message, so history can be shorter without
-  losing personalisation.
+  We always include the full context object separately via a second system
+  message, so history can be shorter without losing personalisation.
 */
 const MAX_HISTORY = 20;
 
+/*
+  POST /api/chatbot/message
+  Body: { message: string, courseId: string }
+  courseId is required — it identifies which per-course context to use.
+*/
 export const sendChatMessage = async (req, res) => {
   try {
-    const userId  = req.userId;
-    const { message } = req.body;
+    const userId             = req.userId;
+    const { message, courseId } = req.body;
 
     if (!message?.trim())
       return res.status(400).json({ success: false, message: "Message is required" });
 
-    // 1) Load or create context doc
-    let ctx = await ChatbotContext.findOne({ userId });
-    if (!ctx) ctx = await ChatbotContext.create({ userId, context: {}, messages: [] });
+    if (!courseId)
+      return res.status(400).json({ success: false, message: "courseId is required" });
+
+    // 1) Load or create context doc for this (user, course)
+    let ctx = await ChatbotContext.findOne({ userId, courseId });
+    if (!ctx) ctx = await ChatbotContext.create({ userId, courseId, context: {}, messages: [] });
 
     // 2) Persist the user message
     ctx.messages.push({ sender: "user", text: message });
@@ -36,14 +43,9 @@ export const sendChatMessage = async (req, res) => {
     //    We use TWO system messages:
     //      [0] system: Study Buddy persona + instructions (systemPrompt)
     //      [1] system: LIVE user context JSON — injected as a second system
-    //                  message so the model cannot confuse it with example data
-    //                  and always treats it as authoritative ground truth.
+    //                  message so the model cannot confuse it with example data.
     //
     //    Then the sliding window of chat history follows.
-    //
-    //    This pattern is well-supported by llama-3.3 and prevents the bug
-    //    where the model reads the example JSON in the system prompt and
-    //    uses it instead of the real user data.
 
     const contextSystemMessage = {
       role: "system",
@@ -54,18 +56,18 @@ export const sendChatMessage = async (req, res) => {
 
     // Sliding window — last MAX_HISTORY messages, EXCLUDING the one we just pushed
     const history = ctx.messages
-      .slice(0, -1)                   // exclude the message we just added
-      .slice(-MAX_HISTORY)            // keep last N
-      .map(m => ({
+      .slice(0, -1)
+      .slice(-MAX_HISTORY)
+      .map((m) => ({
         role:    m.sender === "user" ? "user" : "assistant",
         content: m.text,
       }));
 
     const groqMessages = [
       { role: "system", content: systemPrompt },
-      contextSystemMessage,           // <-- live context, clearly labelled
+      contextSystemMessage,
       ...history,
-      { role: "user",   content: message },
+      { role: "user", content: message },
     ];
 
     // 4) Call Groq

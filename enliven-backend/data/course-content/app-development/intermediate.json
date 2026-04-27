@@ -1,0 +1,49 @@
+{
+  "steps": [
+    {
+      "id": "state-management-apps",
+      "step": 1,
+      "title": "Advanced State Management (Redux/Zustand)",
+      "links": [
+        "https://youtu.be/0-S5a0eXPoc?si=Gz0Wj3QvV6J4H9_T"
+      ],
+      "resources": []
+    },
+    {
+      "id": "native-features",
+      "step": 2,
+      "title": "Accessing Native Device Features",
+      "links": [
+        "https://youtu.be/gvkqT_Uoahw?si=C8D2oG-N8D-K-XjS"
+      ],
+      "resources": []
+    },
+    {
+      "id": "app-performance",
+      "step": 3,
+      "title": "App Performance Optimization",
+      "links": [
+        "https://youtu.be/fAAZixBzIAI?si=PzVv9-XzXzX-G-Q"
+      ],
+      "resources": []
+    },
+    {
+      "id": "testing-apps",
+      "step": 4,
+      "title": "Testing Mobile Applications",
+      "links": [
+        "https://youtu.be/wjI1WNcIntg?si=PzVv9-XzXzX-G-Q"
+      ],
+      "resources": []
+    },
+    {
+      "id": "publishing-apps",
+      "step": 5,
+      "title": "Publishing to App Stores (iOS/Android)",
+      "links": [
+        "https://youtu.be/K-7fE0XzXjE?si=PzVv9-XzXzX-G-Q"
+      ],
+      "resources": []
+    }
+  ]
+}

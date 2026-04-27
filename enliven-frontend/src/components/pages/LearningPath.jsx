@@ -9,7 +9,7 @@ import { Button } from "../ui/button";
 import { ProgressBar } from "../ProgressBar";
 
 // ── slug helpers ──────────────────────────────────────────────────
-const toSlug  = (s = "") => s.toLowerCase().trim().replace(/\s+/g, "-");
+const toSlug  = (s = "") => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 const toLevel = (s = "") => s.replace(/[^a-zA-Z\s]/g, "").toLowerCase().replace(/[^a-z]/g, "");
 const pct     = (done, total) => (total > 0 ? Math.round((done / total) * 100) : 0);
 

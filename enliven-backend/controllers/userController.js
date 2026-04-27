@@ -1,10 +1,13 @@
+// controllers/userController.js
 import User from "../models/User.js";
 import { getGroqClient } from "../ai/groqClient.js";
-import { assessmentQuestions } from "../data/assessmentQuestions.js";
 
 // ---------------------
 // 1. DOMAIN SELECTION
 // ---------------------
+// Stores the chosen domain as a staging field on the user document.
+// This is read by getAssessmentQuestions to generate domain-specific questions.
+// The real enrollment entry is created later in roadmapController.generateRoadmap.
 export const selectDomain = async (req, res) => {
   try {
     const userId = req.userId;
@@ -23,7 +26,7 @@ export const selectDomain = async (req, res) => {
     return res.json({
       success: true,
       message: "Domain selected successfully",
-      domain: user.domain
+      domain:  user.domain,
     });
 
   } catch (err) {
@@ -35,10 +38,13 @@ export const selectDomain = async (req, res) => {
 // ---------------------
 // 2. INITIAL ASSESSMENT
 // ---------------------
+// Grades the user's answers and determines skillLevel.
+// Stores skillLevel as a staging field so roadmapController can use it.
+// The enrollment entry is created when generateRoadmap is called next.
 export const initialAssessment = async (req, res) => {
   try {
-    const userId = req.userId;
-    const { answers } = req.body; 
+    const userId  = req.userId;
+    const { answers } = req.body;
 
     const user = await User.findById(userId);
     if (!user || !user.currentAssessment || user.currentAssessment.length === 0) {
@@ -48,14 +54,14 @@ export const initialAssessment = async (req, res) => {
     if (!answers || answers.length !== user.currentAssessment.length) {
       return res.status(400).json({
         success: false,
-        message: `Exactly ${user.currentAssessment.length} answers are required`
+        message: `Exactly ${user.currentAssessment.length} answers are required`,
       });
     }
 
     let results = {
-      easy: { correct: 0, total: 2 },
+      easy:   { correct: 0, total: 2 },
       medium: { correct: 0, total: 2 },
-      hard: { correct: 0, total: 1 }
+      hard:   { correct: 0, total: 1 },
     };
 
     user.currentAssessment.forEach((q, i) => {
@@ -67,27 +73,28 @@ export const initialAssessment = async (req, res) => {
     let skillLevel = "Beginner";
     const { easy, medium, hard } = results;
 
-    // Advanced: Almost perfect (4-5 correct, must get hard or both medium)
+    // Advanced: Almost perfect (must get hard or both medium)
     if (easy.correct >= 1 && medium.correct >= 2 && hard.correct === 1) {
       skillLevel = "Advanced";
     }
-    // Intermediate: Solid fundamentals (3-4 correct)
+    // Intermediate: Solid fundamentals
     else if (easy.correct >= 2 && medium.correct >= 1) {
       skillLevel = "Intermediate";
     }
-    // Beginner: Struggles (0-2 correct)
+    // Beginner: Struggles
     else {
       skillLevel = "Beginner";
     }
 
+    // Store as staging field — the enrollment is created in roadmapController
     user.skillLevel = skillLevel;
     await user.save();
 
     return res.json({
-      success: true,
-      message: "Skill level determined",
+      success:    true,
+      message:    "Skill level determined",
       skillLevel: user.skillLevel,
-      domain: user.domain
+      domain:     user.domain,
     });
 
   } catch (err) {
@@ -102,13 +109,13 @@ export const initialAssessment = async (req, res) => {
 export const getAssessmentQuestions = async (req, res) => {
   try {
     const userId = req.userId;
-    const user = await User.findById(userId);
-    
+    const user   = await User.findById(userId);
+
     if (!user || !user.domain) {
       return res.status(400).json({ success: false, message: "Please select a domain first" });
     }
 
-    const groq = getGroqClient();
+    const groq   = getGroqClient();
     const domain = user.domain;
 
     const prompt = `
@@ -148,30 +155,60 @@ STEP 3 — Return response in STRICT JSON format:
 `;
 
     const response = await groq.chat.completions.create({
-      model: "llama-3.1-8b-instant",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" }
+      model:           "llama-3.1-8b-instant",
+      messages:        [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
     });
 
     const data = JSON.parse(response.choices[0].message.content);
-    
+
     // Store in user model for validation
     user.currentAssessment = data.questions;
     await user.save();
 
-    // Return questions to frontend (maybe hide correct answers?)
-    // Actually, for initial assessment, we can return questions without correct answers for extra security
-    const frontendQuestions = data.questions.map(q => ({
-      question: q.question,
-      options: q.options,
-      difficulty: q.difficulty
+    // Return questions without correct answers for security
+    const frontendQuestions = data.questions.map((q) => ({
+      question:   q.question,
+      options:    q.options,
+      difficulty: q.difficulty,
     }));
 
-    return res.json({
-      success: true,
-      questions: frontendQuestions,
-    });
+    return res.json({ success: true, questions: frontendQuestions });
 
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// ---------------------
+// 3. GET ENROLLMENTS
+// ---------------------
+// Returns the user's enrollment list for the Sidebar and other UI.
+// Handles the backward-compat case where domain/skillLevel exist but
+// enrollments is still empty (pre-migration users).
+export const getEnrollments = async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select("enrollments domain skillLevel");
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    let enrollments = user.enrollments || [];
+
+    // BACKWARD COMPAT: synthesise enrollment from legacy fields if array is empty
+    if (enrollments.length === 0 && user.domain && user.skillLevel) {
+      const domainSlug = user.domain.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+      const levelSlug  = user.skillLevel.toLowerCase().replace(/[^a-z]/g, "");
+      enrollments = [
+        {
+          courseId:   `${domainSlug}-${levelSlug}`,
+          domain:     domainSlug,
+          skillLevel: levelSlug,
+          enrolledAt: user.createdAt || new Date(),
+        },
+      ];
+    }
+
+    return res.json({ success: true, enrollments });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: "Server error" });

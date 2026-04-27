@@ -9,7 +9,7 @@ const __dirname  = path.dirname(__filename);
 const baseDir    = path.resolve(__dirname, "..", "data", "course-content");
 
 /* ─── HELPERS ─────────────────────────────────────────────────── */
-const toSlug  = (s = "") => s.toLowerCase().replace(/\s+/g, "-");
+const toSlug  = (s = "") => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 const toLevel = (s = "") => s.toLowerCase().replace(/[^a-z]/g, "");
 const norm    = (s = "") => s.toLowerCase().trim();
 

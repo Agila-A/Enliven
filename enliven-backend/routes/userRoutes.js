@@ -1,22 +1,22 @@
+// routes/userRoutes.js
 import express from "express";
 import {
   selectDomain,
   initialAssessment,
-  getAssessmentQuestions
+  getAssessmentQuestions,
+  getEnrollments,
 } from "../controllers/userController.js";
 
 import { requireAuth } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// ✔ Assessment question routes
+// Assessment question routes
 router.get("/assessment-questions", requireAuth, getAssessmentQuestions);
+router.post("/select-domain",        requireAuth, selectDomain);
+router.post("/initial-assessment",   requireAuth, initialAssessment);
 
-router.post("/select-domain", requireAuth, selectDomain);
-
-router.post("/initial-assessment", requireAuth, initialAssessment);
-
-// ❌ REMOVE badge route completely
-// router.post("/award-badge", requireAuth, awardBadge);
+// Returns the user's enrolled courses list (used by Sidebar, etc.)
+router.get("/enrollments",           requireAuth, getEnrollments);
 
 export default router;

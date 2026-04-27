@@ -3,18 +3,20 @@ import ChatbotContext from "../models/ChatbotContext.js";
 
 /*
   POST /api/chatbot/context/update
-  Called by the frontend whenever something meaningful happens:
-    - user starts a module   → { event: "module_started",   currentModule: 2 }
-    - user finishes a video  → { event: "video_completed",  topic: "CSS Flexbox" }
-    - roadmap generated      → { event: "roadmap_created",  domain, skillLevel, totalModules }
+  Body must include:
+    - courseId  : string — the course this context update belongs to
+    - event     : string — e.g. "module_started", "video_completed", "course_opened"
+    - ...payload : any additional context fields to merge
 
   Assessment completion is injected AUTOMATICALLY by proctorController.saveAttempt,
   so the frontend does NOT need to call this endpoint after an exam.
+
+  If courseId is not provided the update is silently skipped (pre-enrollment events).
 */
 export const updateContext = async (req, res) => {
   try {
     const userId = req.userId;
-    const { event, ...payload } = req.body;
+    const { courseId, event, ...payload } = req.body;
 
     if (!userId)
       return res.status(400).json({ success: false, message: "Missing userId" });
@@ -22,8 +24,13 @@ export const updateContext = async (req, res) => {
     if (!event)
       return res.status(400).json({ success: false, message: "Missing event name" });
 
-    let ctx = await ChatbotContext.findOne({ userId });
-    if (!ctx) ctx = new ChatbotContext({ userId, context: {} });
+    // If no courseId, silently succeed — pre-enrollment events have no course context
+    if (!courseId) {
+      return res.json({ success: true, context: {} });
+    }
+
+    let ctx = await ChatbotContext.findOne({ userId, courseId });
+    if (!ctx) ctx = new ChatbotContext({ userId, courseId, context: {} });
 
     // Merge payload into context; keep assessmentHistory untouched
     ctx.context = {
@@ -42,12 +49,17 @@ export const updateContext = async (req, res) => {
 };
 
 /*
-  GET /api/chatbot/history
-  Returns the full message history for the current user.
+  GET /api/chatbot/history?courseId=web-development-beginner
+  Returns the full message history for the given (user, course) pair.
 */
 export const getChatHistory = async (req, res) => {
   try {
-    const ctx = await ChatbotContext.findOne({ userId: req.userId });
+    const { courseId } = req.query;
+
+    if (!courseId)
+      return res.json({ success: true, messages: [] });
+
+    const ctx = await ChatbotContext.findOne({ userId: req.userId, courseId });
     return res.json({ success: true, messages: ctx?.messages || [] });
   } catch (err) {
     console.error("getChatHistory error:", err);
@@ -56,12 +68,17 @@ export const getChatHistory = async (req, res) => {
 };
 
 /*
-  GET /api/chatbot/context
+  GET /api/chatbot/context?courseId=web-development-beginner
   Returns the raw context object — useful for debugging or the analytics page.
 */
 export const getContext = async (req, res) => {
   try {
-    const ctx = await ChatbotContext.findOne({ userId: req.userId });
+    const { courseId } = req.query;
+
+    if (!courseId)
+      return res.json({ success: true, context: {} });
+
+    const ctx = await ChatbotContext.findOne({ userId: req.userId, courseId });
     return res.json({ success: true, context: ctx?.context || {} });
   } catch (err) {
     console.error("getContext error:", err);

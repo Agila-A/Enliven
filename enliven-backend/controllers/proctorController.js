@@ -1,7 +1,7 @@
 // controllers/proctorController.js
 import Groq from "groq-sdk";
-import ProctorAttempt  from "../models/ProctorAttempt.js";
-import ChatbotContext  from "../models/ChatbotContext.js";
+import ProctorAttempt from "../models/ProctorAttempt.js";
+import ChatbotContext from "../models/ChatbotContext.js";
 
 /* ─── GROQ CLIENT ─────────────────────────────────────────────── */
 function createGroqClient() {
@@ -16,24 +16,42 @@ function createGroqClient() {
 function extractJSON(raw) {
   if (!raw) throw new Error("Empty Groq response");
 
+  // Strip markdown fences
   raw = raw.replace(/```json|```/gi, "").trim();
 
-  let start = raw.indexOf("[");
-  if (start === -1) throw new Error("No JSON array found in response");
+  // Find first [ or {
+  const startArr = raw.indexOf("[");
+  const startObj = raw.indexOf("{");
+
+  if (startArr === -1 && startObj === -1) throw new Error("No JSON found in response");
+
+  const isArray = startArr !== -1 && (startObj === -1 || startArr < startObj);
+  const start   = isArray ? startArr : startObj;
+  const opener  = isArray ? "[" : "{";
+  const closer  = isArray ? "]" : "}";
 
   let depth = 0, end = -1;
   for (let i = start; i < raw.length; i++) {
-    if (raw[i] === "[") depth++;
-    else if (raw[i] === "]") { depth--; if (depth === 0) { end = i; break; } }
+    if (raw[i] === opener) depth++;
+    else if (raw[i] === closer) {
+      depth--;
+      if (depth === 0) { end = i; break; }
+    }
   }
-  if (end === -1) throw new Error("Unterminated JSON array");
+
+  if (end === -1) throw new Error(`Unterminated JSON ${isArray ? "array" : "object"}`);
 
   const jsonStr = raw
     .slice(start, end + 1)
-    .replace(/,\s*([}\]])/g, "$1")       // trailing commas
-    .replace(/[\u0000-\u001F]+/g, " ");  // control chars
+    .replace(/,\s*([}\]])/g, "$1")      // trailing commas
+    .replace(/[\u0000-\u001F]+/g, " "); // control chars
 
-  return JSON.parse(jsonStr);
+  try {
+    return JSON.parse(jsonStr);
+  } catch (e) {
+    console.error("JSON.parse failed on:", jsonStr);
+    throw e;
+  }
 }
 
 /* ─── QUESTION GENERATOR ──────────────────────────────────────── */
@@ -94,10 +112,11 @@ function buildViolationSummary(violations = {}, flagged = false) {
 }
 
 /* ─── INJECT ASSESSMENT RESULT INTO CHATBOT CONTEXT ──────────── */
-async function injectAssessmentIntoChatbotContext(userId, attemptData) {
+// Now keyed by (userId, courseId) — each course has its own context.
+async function injectAssessmentIntoChatbotContext(userId, courseId, attemptData) {
   try {
-    let ctx = await ChatbotContext.findOne({ userId });
-    if (!ctx) ctx = new ChatbotContext({ userId, context: {} });
+    let ctx = await ChatbotContext.findOne({ userId, courseId });
+    if (!ctx) ctx = new ChatbotContext({ userId, courseId, context: {} });
 
     const historyEntry = {
       moduleId:   attemptData.moduleId,
@@ -115,8 +134,8 @@ async function injectAssessmentIntoChatbotContext(userId, attemptData) {
 
     ctx.context = {
       ...ctx.context,
-      lastEvent:      "assessment_completed",
-      lastAssessment: historyEntry,
+      lastEvent:         "assessment_completed",
+      lastAssessment:    historyEntry,
       assessmentHistory: [...prevHistory, historyEntry].slice(-10), // keep last 10
     };
 
@@ -140,7 +159,7 @@ export async function getModuleQuestions(req, res) {
     if (!domain || !level)
       return res.status(400).json({ success: false, message: "domain and level are required" });
 
-    const topic = `Module ${moduleId} of ${domain} at ${level} level`;
+    const topic     = `Module ${moduleId} of ${domain} at ${level} level`;
     const questions = await generateQuestionsWithGroq({ topic, count: 5 });
 
     return res.json({ success: true, questions, moduleId, mode: "module" });
@@ -159,13 +178,11 @@ export async function getModuleCodingQuestions(req, res) {
     if (!domain || !level)
       return res.status(400).json({ success: false, message: "domain and level are required" });
 
-    const topic = `Module ${moduleId} of ${domain} (${level})`;
-    
-    // Determine type based on topic name
-    const isUI = /css|html|ui|ux|design|styling|layout/i.test(topic + " " + domain);
-    const type = isUI ? "html_css" : "javascript";
+    const topic  = `Module ${moduleId} of ${domain} (${level})`;
+    const isUI   = /css|html|ui|ux|design|styling|layout/i.test(topic + " " + domain);
+    const type   = isUI ? "html_css" : "javascript";
 
-    const groq = createGroqClient();
+    const groq   = createGroqClient();
     const prompt = `
 Generate EXACTLY 2 coding problems for: "${topic}"
 Context Domain: ${domain}
@@ -184,7 +201,7 @@ Requirements:
 - IMPORTANT: Ensure the Sample Input/Output matches the first Hidden Test Case exactly.
 - IMPORTANT: Instructions must be unambiguous.
 - IMPORTANT: Test case inputs must be SIMPLE strings, numbers, or arrays. NO code snippets or logic in test case inputs.
-- WARNING: Do not mix up logic (e.g., do not describe 'vowels' then test for 'lowercase'). Be consistent!
+- WARNING: Do not mix up logic. Be consistent!
 - VALIDATION: Double check that the "expected" values are mathematically/logically correct.
 
 Return response as a SINGLE JSON OBJECT (do NOT wrap in an array):
@@ -207,20 +224,18 @@ Return response as a SINGLE JSON OBJECT (do NOT wrap in an array):
 `.trim();
 
     const completion = await groq.chat.completions.create({
-      model: "llama-3.1-8b-instant",
+      model:       "llama-3.1-8b-instant",
       messages: [
-        { role: "system", content: "You output only valid JSON arrays. No markdown, no explanation." },
-        { role: "user", content: prompt },
+        { role: "system", content: "You are a coding instructor. You output ONLY valid JSON." },
+        { role: "user",   content: prompt },
       ],
-      response_format: { type: "json_object" }
+      temperature: 0.2,
     });
 
     const content = completion.choices?.[0]?.message?.content;
     if (!content) throw new Error("Empty content from Groq");
-    
-    const data = JSON.parse(content);
-    
-    // Support various JSON structures Groq might return
+
+    const data     = extractJSON(content);
     const problems = Array.isArray(data) ? data : (data.problems || data.questions || data.items || []);
 
     if (!problems || problems.length === 0) {
@@ -228,10 +243,9 @@ Return response as a SINGLE JSON OBJECT (do NOT wrap in an array):
       throw new Error("No problems generated");
     }
 
-    // Clean up problems (sometimes they come with markdown)
-    const cleaned = problems.map(p => ({
+    const cleaned = problems.map((p) => ({
       ...p,
-      title: p.title?.replace(/#|`|\*/g, "").trim()
+      title: p.title?.replace(/#|`|\*/g, "").trim(),
     }));
 
     console.log("GENERATED PROBLEMS:", JSON.stringify(cleaned, null, 2));
@@ -251,7 +265,7 @@ export async function getFinalQuestions(req, res) {
     if (!domain || !level)
       return res.status(400).json({ success: false, message: "domain and level are required" });
 
-    const topic = `Comprehensive final exam for ${domain} (${level} level)`;
+    const topic     = `Comprehensive final exam for ${domain} (${level} level)`;
     const questions = await generateQuestionsWithGroq({ topic, count: 30 });
 
     return res.json({ success: true, questions, mode: "final" });
@@ -262,31 +276,20 @@ export async function getFinalQuestions(req, res) {
 }
 
 /* ─── SAVE ATTEMPT ────────────────────────────────────────────── */
-/*
-  POST /api/proctor/attempt
-  Body: {
-    courseId, moduleId, questions, userAnswers, score,
-    violations: {
-      tabSwitches, faceNotDetected, multipleFaces,
-      lookingAway, expressionAlert, noCamera
-    },
-    flagged, reason, startedAt, endedAt
-  }
-*/
 export async function saveAttempt(req, res) {
   try {
     const userId = req.userId;
     const {
       courseId,
       moduleId,
-      type         = "mcq",
-      questions    = [],
-      userAnswers  = [],
+      type            = "mcq",
+      questions       = [],
+      userAnswers     = [],
       codingSolutions = [],
-      score        = 0,
-      violations   = {},
-      flagged      = false,
-      reason       = "",
+      score           = 0,
+      violations      = {},
+      flagged         = false,
+      reason          = "",
       startedAt,
       endedAt,
     } = req.body;
@@ -322,8 +325,8 @@ export async function saveAttempt(req, res) {
       endedAt:   endedAt   ? new Date(endedAt)   : new Date(),
     });
 
-    /* ── Push assessment result into Study Buddy context ── */
-    await injectAssessmentIntoChatbotContext(userId, {
+    /* ── Push assessment result into Study Buddy context for THIS course ── */
+    await injectAssessmentIntoChatbotContext(userId, courseId, {
       moduleId,
       score,
       passed,
@@ -333,7 +336,7 @@ export async function saveAttempt(req, res) {
     });
 
     return res.status(201).json({
-      success: true,
+      success:   true,
       attemptId: attempt._id,
       score,
       passed,
@@ -348,14 +351,14 @@ export async function saveAttempt(req, res) {
 /* ─── GET ATTEMPTS FOR USER ───────────────────────────────────── */
 export async function getUserAttempts(req, res) {
   try {
-    const userId = req.userId;
+    const userId     = req.userId;
     const { courseId } = req.query;
 
     const filter = { userId };
     if (courseId) filter.courseId = courseId;
 
     const attempts = await ProctorAttempt.find(filter)
-      .select("-questions")   // don't send full question list
+      .select("-questions")
       .sort({ createdAt: -1 })
       .lean();
 
@@ -367,13 +370,9 @@ export async function getUserAttempts(req, res) {
 }
 
 /* ─── GET LATEST ATTEMPT FOR A MODULE ────────────────────────── */
-/*
-  GET /api/proctor/attempt/:moduleId?courseId=xxx
-  Used by frontend to check if user already passed a module.
-*/
 export async function getModuleAttempt(req, res) {
   try {
-    const userId   = req.userId;
+    const userId     = req.userId;
     const { moduleId } = req.params;
     const { courseId } = req.query;
 

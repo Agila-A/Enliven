@@ -1,0 +1,49 @@
+{
+  "steps": [
+    {
+      "id": "advanced-exploitation",
+      "step": 1,
+      "title": "Advanced Exploitation & Rootkits",
+      "links": [
+        "https://youtu.be/3Kq1MIfTWCE?si=Gz0Wj3QvV6J4H9_T"
+      ],
+      "resources": []
+    },
+    {
+      "id": "cryptanalysis-advanced",
+      "step": 2,
+      "title": "Advanced Cryptanalysis",
+      "links": [
+        "https://youtu.be/NuyzuNBFWxQ?si=C8D2oG-N8D-K-XjS"
+      ],
+      "resources": []
+    },
+    {
+      "id": "cloud-security-arch",
+      "step": 3,
+      "title": "Cloud Security Architecture",
+      "links": [
+        "https://youtu.be/Lp_v988_fsO?si=PzVv9-XzXzX-G-Q"
+      ],
+      "resources": []
+    },
+    {
+      "id": "threat-hunting",
+      "step": 4,
+      "title": "Threat Hunting & Cyber Intelligence",
+      "links": [
+        "https://youtu.be/0yWAtQ6wMlM?si=PzVv9-XzXzX-G-Q"
+      ],
+      "resources": []
+    },
+    {
+      "id": "zero-trust",
+      "step": 5,
+      "title": "Zero Trust Architecture",
+      "links": [
+        "https://youtu.be/h4KntCtZ7uM?si=PzVv9-XzXzX-G-Q"
+      ],
+      "resources": []
+    }
+  ]
+}

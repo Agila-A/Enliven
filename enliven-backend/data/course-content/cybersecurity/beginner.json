@@ -1,0 +1,52 @@
+{
+  "steps": [
+    {
+      "id": "intro-cybersecurity",
+      "step": 1,
+      "title": "Introduction to Cybersecurity",
+      "links": [
+        "https://youtu.be/nzj7Wg46A88?si=Gz0Wj3QvV6J4H9_T",
+        "https://youtu.be/z5nc9MDbvkw?si=L4Z-wV8zPzXm-G-Q"
+      ],
+      "resources": [
+        "https://www.cybrary.it/"
+      ]
+    },
+    {
+      "id": "networking-basics",
+      "step": 2,
+      "title": "Networking Fundamentals",
+      "links": [
+        "https://youtu.be/IPvYjX9bas8?si=C8D2oG-N8D-K-XjS"
+      ],
+      "resources": []
+    },
+    {
+      "id": "linux-fundamentals",
+      "step": 3,
+      "title": "Linux Fundamentals for Security",
+      "links": [
+        "https://youtu.be/VfNIgu37atU?si=PzVv9-XzXzX-G-Q"
+      ],
+      "resources": []
+    },
+    {
+      "id": "web-security",
+      "step": 4,
+      "title": "Web Application Security Basics",
+      "links": [
+        "https://youtu.be/2_ls2E-5-Yk?si=PzVv9-XzXzX-G-Q"
+      ],
+      "resources": []
+    },
+    {
+      "id": "cryptography",
+      "step": 5,
+      "title": "Basic Cryptography",
+      "links": [
+        "https://youtu.be/NuyzuNBFWxQ?si=PzVv9-XzXzX-G-Q"
+      ],
+      "resources": []
+    }
+  ]
+}

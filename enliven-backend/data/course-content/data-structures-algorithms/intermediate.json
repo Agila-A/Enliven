@@ -1,0 +1,50 @@
+{
+  "steps": [
+    {
+      "id": "recursion-backtracking",
+      "step": 1,
+      "title": "Recursion & Backtracking",
+      "links": [
+        "https://youtu.be/KEEKn7Me-HM?si=Gz0Wj3QvV6J4H9_T",
+        "https://youtu.be/0-S5a0eXPoc?si=L4Z-wV8zPzXm-G-Q"
+      ],
+      "resources": []
+    },
+    {
+      "id": "trees-bst",
+      "step": 2,
+      "title": "Trees and Binary Search Trees",
+      "links": [
+        "https://youtu.be/fAAZixBzIAI?si=C8D2oG-N8D-K-XjS"
+      ],
+      "resources": []
+    },
+    {
+      "id": "graphs-traversal",
+      "step": 3,
+      "title": "Graphs and Traversal Algorithms (BFS/DFS)",
+      "links": [
+        "https://youtu.be/tWVWeaqPyvU?si=PzVv9-XzXzX-G-Q"
+      ],
+      "resources": []
+    },
+    {
+      "id": "dynamic-programming",
+      "step": 4,
+      "title": "Introduction to Dynamic Programming",
+      "links": [
+        "https://youtu.be/oBt53YbR9Kk?si=PzVv9-XzXzX-G-Q"
+      ],
+      "resources": []
+    },
+    {
+      "id": "greedy-algorithms",
+      "step": 5,
+      "title": "Greedy Algorithms",
+      "links": [
+        "https://youtu.be/bC7o8P_Ste4?si=PzVv9-XzXzX-G-Q"
+      ],
+      "resources": []
+    }
+  ]
+}

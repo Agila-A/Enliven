@@ -1,46 +1,50 @@
 import dotenv from "dotenv";
-dotenv.config(); 
+dotenv.config();
 
 import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import authRoutes from "./routes/authRoutes.js";
-import userRoutes from "./routes/userRoutes.js";
-import roadmapRoutes from "./routes/roadmapRoutes.js";
-import courseRoutes from "./routes/courseRoutes.js";
-import notesRoutes from "./routes/notesRoutes.js";
-import profileRoutes from "./routes/profileRoutes.js";
-import dashboardRoutes from "./routes/dashboardRoutes.js";
-import progressRoutes from "./routes/progressRoutes.js";
-import chatbotRoutes from "./routes/chatbotRoutes.js";
-import proctorRoutes from "./routes/proctorRoutes.js"
+
+import authRoutes        from "./routes/authRoutes.js";
+import userRoutes        from "./routes/userRoutes.js";
+import roadmapRoutes     from "./routes/roadmapRoutes.js";
+import courseRoutes      from "./routes/courseRoutes.js";
+import notesRoutes       from "./routes/notesRoutes.js";
+import profileRoutes     from "./routes/profileRoutes.js";
+import dashboardRoutes   from "./routes/dashboardRoutes.js";
+import progressRoutes    from "./routes/progressRoutes.js";
+import chatbotRoutes     from "./routes/chatbotRoutes.js";
+import proctorRoutes     from "./routes/proctorRoutes.js";
 import learningPathRoutes from "./routes/learningPathRoutes.js";
-import analyticsRoutes from "./routes/analyticsRoutes.js";
+import analyticsRoutes   from "./routes/analyticsRoutes.js";
+import migrationRoutes   from "./routes/migrationRoutes.js";
+
 const app = express();
 
 app.use(express.json({ strict: false }));
 app.use(cookieParser());
 
 app.use(
-  cors({   
-    origin: process.env.CLIENT_URL,
+  cors({
+    origin:      process.env.CLIENT_URL,
     credentials: true,
   })
 );
 
-app.use("/api/auth", authRoutes);
-app.use("/api/user", userRoutes);
-app.use("/api/roadmap", roadmapRoutes);
-app.use("/api/courses", courseRoutes);
-app.use("/api/notes", notesRoutes);
-app.use("/api/profile", profileRoutes);
-app.use("/api/dashboard", dashboardRoutes);
-app.use("/api/progress", progressRoutes);
-app.use("/api/chatbot", chatbotRoutes);
-app.use("/api/proctor", proctorRoutes);
+app.use("/api/auth",          authRoutes);
+app.use("/api/user",          userRoutes);
+app.use("/api/roadmap",       roadmapRoutes);
+app.use("/api/courses",       courseRoutes);
+app.use("/api/notes",         notesRoutes);
+app.use("/api/profile",       profileRoutes);
+app.use("/api/dashboard",     dashboardRoutes);
+app.use("/api/progress",      progressRoutes);
+app.use("/api/chatbot",       chatbotRoutes);
+app.use("/api/proctor",       proctorRoutes);
 app.use("/api/learning-path", learningPathRoutes);
-app.use("/api/analytics", analyticsRoutes);
+app.use("/api/analytics",     analyticsRoutes);
+app.use("/api/migration",     migrationRoutes);
 
 mongoose
   .connect(process.env.MONGO_URI)
@@ -52,4 +56,4 @@ mongoose
   })
   .catch((err) => console.error("DB Error:", err.message));
 
-  console.log("GROQ KEY:", process.env.GROQ_API_KEY);
+console.log("GROQ KEY:", process.env.GROQ_API_KEY ? "present" : "MISSING");
