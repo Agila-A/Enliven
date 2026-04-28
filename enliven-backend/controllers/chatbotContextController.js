@@ -32,6 +32,14 @@ export const updateContext = async (req, res) => {
     let ctx = await ChatbotContext.findOne({ userId, courseId });
     if (!ctx) ctx = new ChatbotContext({ userId, courseId, context: {} });
 
+    // Fix for Problem 7: Log incoming update and map lessonTitle to lastLessonTitle
+    console.log(`[ChatbotContext] updateContext called with event: ${event}`);
+    if (payload.lessonTitle) {
+      payload.lastLessonTitle = payload.lessonTitle;
+      delete payload.lessonTitle;
+      console.log(`[ChatbotContext] Saving lastLessonTitle: ${payload.lastLessonTitle}`);
+    }
+
     // Merge payload into context; keep assessmentHistory untouched
     ctx.context = {
       ...ctx.context,

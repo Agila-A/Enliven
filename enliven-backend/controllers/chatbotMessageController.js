@@ -22,7 +22,7 @@ const MAX_HISTORY = 20;
 */
 export const sendChatMessage = async (req, res) => {
   try {
-    const userId             = req.userId;
+    const userId = req.userId;
     const { message, courseId } = req.body;
 
     if (!message?.trim())
@@ -33,33 +33,42 @@ export const sendChatMessage = async (req, res) => {
 
     // 1) Load or create context doc for this (user, course)
     let ctx = await ChatbotContext.findOne({ userId, courseId });
-    if (!ctx) ctx = await ChatbotContext.create({ userId, courseId, context: {}, messages: [] });
+    if (!ctx) {
+      ctx = await ChatbotContext.create({ userId, courseId, context: {}, messages: [] });
+    }
 
-    // 2) Persist the user message
-    ctx.messages.push({ sender: "user", text: message });
+    // 2) Persist the user message using $push with $slice
+    // Fixes Problem 1 & 2 (race condition overwriting context) and Problem 3 (trimming history)
+    await ChatbotContext.updateOne(
+      { _id: ctx._id },
+      {
+        $push: {
+          messages: {
+            $each: [{ sender: "user", text: message }],
+            $slice: -100
+          }
+        }
+      }
+    );
 
     // 3) Build the messages array for Groq
-    //
-    //    We use TWO system messages:
-    //      [0] system: Study Buddy persona + instructions (systemPrompt)
-    //      [1] system: LIVE user context JSON — injected as a second system
-    //                  message so the model cannot confuse it with example data.
-    //
-    //    Then the sliding window of chat history follows.
+    // Problem 1 & 2: Do a FRESH findOne right before building the prompt 
+    // to get any background context updates that just finished.
+    let freshCtx = await ChatbotContext.findOne({ userId, courseId });
 
     const contextSystemMessage = {
       role: "system",
       content:
         "LIVE USER CONTEXT (use this data exclusively — do not invent or assume anything not present here):\n" +
-        JSON.stringify(ctx.context || {}, null, 2),
+        JSON.stringify(freshCtx.context || {}, null, 2),
     };
 
-    // Sliding window — last MAX_HISTORY messages, EXCLUDING the one we just pushed
-    const history = ctx.messages
-      .slice(0, -1)
+    // Sliding window — last MAX_HISTORY messages
+    const history = freshCtx.messages
       .slice(-MAX_HISTORY)
+      .slice(0, -1) // EXCLUDE the user message we just pushed, it gets added below
       .map((m) => ({
-        role:    m.sender === "user" ? "user" : "assistant",
+        role: m.sender === "user" ? "user" : "assistant",
         content: m.text,
       }));
 
@@ -73,21 +82,31 @@ export const sendChatMessage = async (req, res) => {
     // 4) Call Groq
     const groq = createGroqClient();
     const completion = await groq.chat.completions.create({
-      model:       "llama-3.3-70b-versatile",
+      model: "llama-3.3-70b-versatile",
       temperature: 0.7,
-      max_tokens:  1000,
-      messages:    groqMessages,
+      max_tokens: 1000,
+      messages: groqMessages,
     });
 
     const reply = completion.choices?.[0]?.message?.content;
     if (!reply) throw new Error("Groq returned empty reply");
 
-    // 5) Persist the assistant reply
-    ctx.messages.push({ sender: "assistant", text: reply });
-    await ctx.save();
+    // 5) Persist the assistant reply using $push and $slice to avoid overwriting context
+    await ChatbotContext.updateOne(
+      { _id: ctx._id },
+      {
+        $push: {
+          messages: {
+            $each: [{ sender: "assistant", text: reply }],
+            $slice: -100
+          }
+        }
+      }
+    );
 
     // 6) Respond
-    return res.json({ success: true, reply });
+    // Problem 10: contextUpdated flag
+    return res.json({ success: true, reply, contextUpdated: false });
 
   } catch (err) {
     console.error("sendChatMessage error:", err);

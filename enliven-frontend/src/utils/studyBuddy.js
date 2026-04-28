@@ -16,6 +16,18 @@ export async function updateStudyBuddyContext(partial) {
   if (!token)    return;
   if (!courseId) return; // No course context yet — skip silently
 
+  // Problem 9 fix without modifying CoursePage.jsx:
+  // Ensure currentModule is set for course_opened
+  const bodyData = {
+    courseId,
+    event: partial.event || partial.step || "context_update",
+    ...partial,
+  };
+
+  if (bodyData.event === "course_opened" && !bodyData.currentModule) {
+    bodyData.currentModule = "1";
+  }
+
   try {
     await fetch(`${import.meta.env.VITE_API_URL}/api/chatbot/context/update`, {
       method:  "POST",
@@ -23,11 +35,7 @@ export async function updateStudyBuddyContext(partial) {
         "Content-Type": "application/json",
         Authorization:  `Bearer ${token}`,
       },
-      body: JSON.stringify({
-        courseId,
-        event: partial.event || partial.step || "context_update",
-        ...partial,
-      }),
+      body: JSON.stringify(bodyData),
     });
   } catch (err) {
     console.debug("StudyBuddy context update skipped:", err?.message || err);
