@@ -19,6 +19,7 @@ import learningPathRoutes from "./routes/learningPathRoutes.js";
 import analyticsRoutes   from "./routes/analyticsRoutes.js";
 import migrationRoutes   from "./routes/migrationRoutes.js";
 import remedialRoutes    from "./routes/remedialRoutes.js";
+import codeReviewRoutes  from "./routes/codeReviewRoutes.js";
 
 const app = express();
 
@@ -45,6 +46,7 @@ app.use("/api/learning-path", learningPathRoutes);
 app.use("/api/analytics",     analyticsRoutes);
 app.use("/api/migration",     migrationRoutes);
 app.use("/api/remedial",      remedialRoutes);
+app.use("/api/code-review",   codeReviewRoutes);
 
 mongoose
   .connect(process.env.MONGO_URI)

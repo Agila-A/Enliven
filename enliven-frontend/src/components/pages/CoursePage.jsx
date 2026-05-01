@@ -33,9 +33,6 @@ export default function CoursePage() {
   const [moduleStatus, setModuleStatus] = useState({});
   const [progressData, setProgressData] = useState([]);
 
-  const [projectModalOpen, setProjectModalOpen] = useState(false);
-  const [projectLink, setProjectLink] = useState("");
-
   const fetchData = async () => {
     try {
       const token = localStorage.getItem("token");
@@ -111,25 +108,13 @@ export default function CoursePage() {
     navigate(`/assessment?module=${topic.sequenceNumber}&domain=${domain}&level=${level}&moduleTitle=${encodeURIComponent(topic.title)}`);
   };
 
-  const submitProject = async (topicId) => {
-    if (!projectLink) return;
-    try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/progress/complete-module`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ courseId, moduleId: topicId, status: "completed" }),
-      });
-      if (res.ok) {
-        alert("Project Submitted Successfully!");
-        setProjectModalOpen(false);
-        setProjectLink("");
-        fetchData(); // Refresh UI
-      }
-    } catch (e) {
-      console.error("Submit project error:", e);
-    }
+  const handleProjectSubmission = (topic) => {
+    const isFinal = topic.sequenceNumber === "final" || topic.isFinal;
+    const moduleId = isFinal ? "final" : topic.sequenceNumber;
+    navigate(`/project/${domain}/${level}/${moduleId}?moduleTitle=${encodeURIComponent(topic.title)}`);
   };
+
+
 
   if (loading) return <div className="p-10 flex justify-center"><p className="text-foreground/70 font-medium">Loading…</p></div>;
   if (error) return <div className="p-10 flex justify-center"><p className="text-red font-medium">{error}</p></div>;
@@ -212,7 +197,7 @@ export default function CoursePage() {
                 ) : moduleStatus[topicId] === "coding_passed" ? (
                   <>
                     <button 
-                      onClick={() => setProjectModalOpen(topic)}
+                      onClick={() => handleProjectSubmission(topic)}
                       className="w-full py-3 bg-red text-white font-bold rounded-xl hover:bg-red/90 transition-all shadow-sm flex items-center justify-center gap-2"
                     >
                       <Code size={18} /> Submit Project
@@ -239,7 +224,7 @@ export default function CoursePage() {
                       <Bot size={18} /> {studyStarted ? "Continue with AI" : "Study with AI"}
                     </button>
                     <button 
-                      onClick={() => setProjectModalOpen(topic)}
+                      onClick={() => handleProjectSubmission(topic)}
                       className="w-full py-3 bg-white text-foreground border-2 border-cream font-bold rounded-xl hover:bg-cream/50 transition-all flex items-center justify-center gap-2"
                     >
                       <Code size={18} /> Submit Project
@@ -260,7 +245,7 @@ export default function CoursePage() {
                       <ShieldCheck size={18} /> Take Test
                     </button>
                     <button 
-                      onClick={() => setProjectModalOpen(topic)}
+                      onClick={() => handleProjectSubmission(topic)}
                       className="w-full py-3 bg-white text-foreground border-2 border-cream font-bold rounded-xl hover:bg-cream/50 transition-all flex items-center justify-center gap-2"
                     >
                       <Code size={18} /> Submit Project
@@ -273,39 +258,29 @@ export default function CoursePage() {
         })}
       </div>
 
-      {projectModalOpen && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl border border-cream">
-            <h2 className="text-2xl font-bold text-foreground mb-2">Submit Project</h2>
-            <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-6">
-               <h4 className="text-xs font-black text-blue-600 uppercase tracking-widest mb-1">Project Task</h4>
-               <p className="text-sm font-medium text-blue-900">{projectModalOpen.projectTask || "Build a small project to demonstrate what you've learned in this module."}</p>
+        {passedModules === totalModules && totalModules > 0 && (
+          <div className="bg-gradient-to-br from-red to-red-700 rounded-3xl border-2 border-red/20 p-8 flex flex-col justify-between transition-all shadow-xl text-white col-span-full mt-6">
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-sm font-black uppercase tracking-[0.3em] opacity-80">Final Stage</span>
+                <span className="flex items-center text-xs font-black bg-white/20 px-4 py-1.5 rounded-full backdrop-blur-md">⭐ Certification Path</span>
+              </div>
+              <h3 className="text-3xl font-black mb-3">Final Certification Project</h3>
+              <p className="text-white/80 text-sm font-bold mb-8 max-w-2xl leading-relaxed">
+                Congratulations! You've mastered all modules. Now, implement your final project to showcase your skills. 
+                This project will be reviewed by a human mentor for official certification.
+              </p>
             </div>
-            <p className="text-foreground/60 text-sm mb-4 font-medium">Paste your GitHub repository link below to submit your project for this module.</p>
-            <textarea 
-              value={projectLink}
-              onChange={(e) => setProjectLink(e.target.value)}
-              className="w-full bg-cream/30 border-2 border-cream rounded-xl p-4 text-foreground placeholder:text-foreground/40 font-medium focus:outline-none focus:border-red transition-colors mb-6 resize-none"
-              placeholder="https://github.com/yourusername/project"
-              rows={3}
-            />
-            <div className="flex gap-4">
-              <button 
-                onClick={() => setProjectModalOpen(false)}
-                className="flex-1 py-3 bg-cream/50 text-foreground font-bold rounded-xl hover:bg-cream transition-all"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={() => submitProject(String(projectModalOpen.sequenceNumber))}
-                className="flex-1 py-3 bg-red text-white font-bold rounded-xl shadow-md hover:bg-red/90 transition-all"
-              >
-                Submit
-              </button>
-            </div>
+            
+            <button 
+              onClick={() => handleProjectSubmission({ sequenceNumber: "final", title: "Final Project" })}
+              className="w-full md:w-max px-10 py-4 bg-white text-red font-black rounded-2xl hover:bg-cream transition-all shadow-2xl flex items-center justify-center gap-3 transform active:scale-95"
+            >
+              <Code size={20} /> Begin Final Project Review
+            </button>
           </div>
-        </div>
-      )}
+        )}
+
     </div>
   );
 }

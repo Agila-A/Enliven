@@ -11,6 +11,7 @@ import {
   BookOpen,
   PlusCircle,
   ChevronRight,
+  ClipboardList,
 } from "lucide-react";
 
 /* ── Top-level nav items (after Courses) ── */
@@ -18,6 +19,10 @@ const menuItems = [
   { id: "analytics",     label: "Analytics",     icon: BarChart3 },
   { id: "studybuddy",    label: "Study Buddy",   icon: MessageCircle },
   { id: "profile",       label: "Profile",       icon: User },
+];
+
+const mentorItems = [
+  { id: "mentor/reviews", label: "Reviews",       icon: ClipboardList },
 ];
 
 /* ── Pretty-print a courseId like "web-development-beginner" ─────────── */
@@ -211,6 +216,22 @@ export default function Sidebar() {
         {/* Remaining menu items */}
         <div className="pt-2 space-y-1">
           {menuItems.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => go(id)}
+              className={`w-full flex items-center space-x-4 px-4 py-3 rounded-xl transition-all duration-200 ${
+                isActive(id)
+                  ? "bg-red text-white shadow-md font-semibold"
+                  : "text-foreground hover:bg-cream hover:text-red font-medium"
+              }`}
+            >
+              <Icon className={`w-5 h-5 ${isActive(id) ? "text-white" : "text-foreground/70"}`} />
+              <span>{label}</span>
+            </button>
+          ))}
+
+          {/* Mentor-only items */}
+          {localStorage.getItem("role") === "mentor" && mentorItems.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               onClick={() => go(id)}
