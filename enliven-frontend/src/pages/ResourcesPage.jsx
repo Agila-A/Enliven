@@ -134,20 +134,32 @@ export default function ResourcesPage() {
         const cData = await cRes.json()
         if (cData.success) setByModule(cData.byModule || {})
 
-        // 3. For any module with no cache or stale cache, trigger background fetch
-        for (const topic of rm.topics) {
-          const mid   = String(topic.sequenceNumber)
-          const entry = cData.byModule?.[mid]
-          const needsFetch =
-            !entry ||
-            entry.status === "failed" ||
-            (entry.status === "ready" && entry.fetchedAt &&
-              (Date.now() - new Date(entry.fetchedAt)) > 7 * 24 * 60 * 60 * 1000)
+        // 3. Sequential Queue to avoid Groq Rate Limits
+        const topicsToFetch = rm.topics.filter(topic => {
+          const mid = String(topic.sequenceNumber);
+          const entry = cData.byModule?.[mid];
+          return !entry || entry.status === "failed" || 
+                 (entry.status === "ready" && entry.fetchedAt && 
+                 (Date.now() - new Date(entry.fetchedAt)) > 7 * 24 * 60 * 60 * 1000);
+        });
 
-          if (needsFetch) {
-            triggerFetchForModule(mid, cid)
-          } else if (entry?.status === "pending") {
-            startPollingModule(mid, cid)
+        const processQueue = async () => {
+          for (let i = 0; i < topicsToFetch.length; i++) {
+            const topic = topicsToFetch[i];
+            const mid = String(topic.sequenceNumber);
+            await triggerFetchForModule(mid, cid);
+            if (i < topicsToFetch.length - 1) {
+              await new Promise(r => setTimeout(r, 4000)); // 4s delay
+            }
+          }
+        };
+
+        processQueue();
+
+        for (const topic of rm.topics) {
+          const mid = String(topic.sequenceNumber);
+          if (cData.byModule?.[mid]?.status === "pending") {
+            startPollingModule(mid, cid);
           }
         }
       } catch (err) {

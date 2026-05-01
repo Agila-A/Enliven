@@ -41,6 +41,8 @@ export const register = async (req, res) => {
           id: user._id,
           name: user.name,
           email: user.email,
+          role: user.role,
+          streak: user.streak || 0,
         },
       });
 
@@ -81,6 +83,8 @@ export const login = async (req, res) => {
           id: user._id,
           name: user.name,
           email: user.email,
+          role: user.role,
+          streak: user.streak || 0,
           domain: user.domain || null,
         },
       });

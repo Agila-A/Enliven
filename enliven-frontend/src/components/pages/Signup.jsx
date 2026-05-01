@@ -30,6 +30,8 @@ export default function Signup() {
 
       localStorage.setItem("loggedIn", "true");
       localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      localStorage.setItem("role", data.user.role || "student");
 
       navigate("/select-domain");
     } catch (err) {

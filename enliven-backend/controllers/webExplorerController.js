@@ -224,8 +224,8 @@ export async function runWeeklyJobForUser(userId) {
         triggerType: "scheduled",
       })
 
-      // 2 second delay between topics to respect Groq rate limits
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      // 4 second delay between topics to respect Groq rate limits
+      await new Promise(resolve => setTimeout(resolve, 4000))
     }
   } catch (err) {
     console.error(`Weekly job error for user ${userId}:`, err.message)
