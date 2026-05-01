@@ -20,6 +20,8 @@ import analyticsRoutes   from "./routes/analyticsRoutes.js";
 import migrationRoutes   from "./routes/migrationRoutes.js";
 import remedialRoutes    from "./routes/remedialRoutes.js";
 import codeReviewRoutes  from "./routes/codeReviewRoutes.js";
+import webExplorerRoutes from "./routes/webExplorerRoutes.js";
+import { startWeeklyResourceJob } from "./jobs/weeklyResourceJob.js";
 
 const app = express();
 
@@ -47,11 +49,18 @@ app.use("/api/analytics",     analyticsRoutes);
 app.use("/api/migration",     migrationRoutes);
 app.use("/api/remedial",      remedialRoutes);
 app.use("/api/code-review",   codeReviewRoutes);
+app.use("/api/resources",     webExplorerRoutes);
 
 mongoose
-  .connect(process.env.MONGO_URI)
+  .connect(process.env.MONGO_URI, {
+    family: 4 // Force IPv4 to avoid ENOTFOUND on some networks
+  })
   .then(() => {
     console.log("MongoDB connected");
+    
+    // Start cron jobs
+    startWeeklyResourceJob();
+
     app.listen(process.env.PORT, () =>
       console.log(`Server running on port ${process.env.PORT}`)
     );

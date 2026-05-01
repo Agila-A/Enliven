@@ -12,12 +12,14 @@ import {
   PlusCircle,
   ChevronRight,
   ClipboardList,
+  Library,
 } from "lucide-react";
 
 /* ── Top-level nav items (after Courses) ── */
 const menuItems = [
   { id: "analytics",     label: "Analytics",     icon: BarChart3 },
   { id: "studybuddy",    label: "Study Buddy",   icon: MessageCircle },
+  { id: "resources",     label: "Resources",     icon: Library },
   { id: "profile",       label: "Profile",       icon: User },
 ];
 
@@ -103,12 +105,14 @@ export default function Sidebar() {
 
   const go = (id) => {
     if (id === "studybuddy") { navigate("/study-buddy"); return; }
+    if (id === "resources") { navigate("/resources"); return; }
     navigate(`/${id}`);
   };
 
   const isActive = (id) => {
     if (id === "dashboard")     return pathname === "/dashboard";
     if (id === "studybuddy")    return pathname === "/study-buddy";
+    if (id === "resources")     return pathname === "/resources" || pathname.startsWith("/resources");
     if (id === "learning-path") return pathname === "/learning-path";
     return pathname === `/${id}`;
   };

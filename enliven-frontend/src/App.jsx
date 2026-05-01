@@ -20,6 +20,7 @@ import StudyBuddyChat from "./components/pages/StudyBuddyChat";
 import CodingAssessment from "./components/pages/CodingAssessment";
 import ProjectPage from "./pages/ProjectPage";
 import MentorReviewPage from "./pages/MentorReviewPage";
+import ResourcesPage from "./pages/ResourcesPage";
 
 const isLogged = () => !!localStorage.getItem("token");
 
@@ -182,6 +183,19 @@ export default function App() {
     isLogged() ? (
       <AppLayout>
         <MentorReviewPage />
+      </AppLayout>
+    ) : (
+      <Navigate to="/login" />
+    )
+  }
+/>
+
+<Route
+  path="/resources"
+  element={
+    isLogged() ? (
+      <AppLayout>
+        <ResourcesPage />
       </AppLayout>
     ) : (
       <Navigate to="/login" />
