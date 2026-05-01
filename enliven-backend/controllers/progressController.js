@@ -24,26 +24,17 @@ const normalizeMap = (map) => {
   return {};
 };
 
-// FIX: accept videoCount and store it on the topic row
-const upsertTopic = (doc, topicId, videoProgressPatch, currentIndex, videoCount) => {
+const upsertTopic = (doc, topicId, studyStarted) => {
   const tid = String(topicId);
   let topic = doc.progress.find(p => String(p.topicId) === tid);
 
   if (!topic) {
-    topic = { topicId: tid, videoProgress: {}, currentIndex: 0, videoCount: 0 };
+    topic = { topicId: tid, studyStarted: false, currentIndex: 0 };
     doc.progress.push(topic);
   }
 
-  const existing = normalizeMap(topic.videoProgress);
-  const incoming = normalizeMap(videoProgressPatch);
-  topic.videoProgress = { ...existing, ...incoming };
-
-  if (typeof currentIndex === "number") topic.currentIndex = currentIndex;
-
-  // Always update videoCount if a valid value is sent — this is the actual
-  // total from the merged course JSON, so it's authoritative.
-  if (typeof videoCount === "number" && videoCount > 0) {
-    topic.videoCount = videoCount;
+  if (studyStarted !== undefined) {
+    topic.studyStarted = studyStarted;
   }
 };
 
@@ -51,8 +42,7 @@ const upsertTopic = (doc, topicId, videoProgressPatch, currentIndex, videoCount)
 export const saveProgress = async (req, res) => {
   try {
     const userId = req.userId;
-    // FIX: destructure videoCount from body
-    const { courseId, topicId, videoProgress = {}, currentIndex, videoCount } = req.body;
+    const { courseId, topicId, studyStarted } = req.body;
 
     if (!userId || !courseId || !topicId) {
       return res.status(400).json({
@@ -62,7 +52,7 @@ export const saveProgress = async (req, res) => {
     }
 
     const doc = await ensureProgressDoc(userId, courseId);
-    upsertTopic(doc, topicId, videoProgress, currentIndex, videoCount);
+    upsertTopic(doc, topicId, studyStarted);
     await doc.save();
 
     res.json({ success: true });
@@ -105,14 +95,11 @@ export const getProgressForCourse = async (req, res) => {
       }
     }
 
-    // Convert progress array — videoProgress is also a Map
+    // Convert progress array
     const progressPlain = (doc.progress || []).map(p => ({
       topicId:       p.topicId,
       currentIndex:  p.currentIndex,
-      videoCount:    p.videoCount,
-      videoProgress: p.videoProgress
-        ? Object.fromEntries(p.videoProgress.entries())
-        : {},
+      studyStarted:  p.studyStarted
     }));
 
     res.json({

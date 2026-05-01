@@ -272,7 +272,7 @@ export default function CodingAssessment() {
             await fetch(`${import.meta.env.VITE_API_URL}/api/progress/complete-module`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ courseId, moduleId, status: "completed" })
+                body: JSON.stringify({ courseId, moduleId, status: "coding_passed" })
             });
         }
 
@@ -355,7 +355,10 @@ export default function CodingAssessment() {
                     <p className="text-xs font-bold text-foreground/40 uppercase">Violations</p>
                 </div>
             </div>
-            <button onClick={() => navigate(`/courses/${domain}/${level}`)} className="w-full py-5 bg-red text-white font-bold rounded-2xl text-xl shadow-lg hover:-translate-y-1 transition-all">Back to Course</button>
+            <div className="flex flex-col sm:flex-row gap-4 mt-8">
+              <button onClick={() => navigate(`/courses/${domain}/${level}`)} className="flex-1 py-4 bg-white text-red border-2 border-red font-bold rounded-2xl text-xl shadow-md hover:bg-red/5 transition-all">Back to Course</button>
+              <button onClick={() => navigate(`/analytics`)} className="flex-1 py-4 bg-red text-white font-bold rounded-2xl text-xl shadow-lg hover:-translate-y-1 transition-all">Analyze Performance</button>
+            </div>
         </div>
     </div>
   );

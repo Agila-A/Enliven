@@ -53,6 +53,16 @@ function IntegrityBadge({ score }) {
   );
 }
 
+/* ─── HELPER: FORMAT TIME AGO ─────────────────────────────────── */
+function formatTimeAgo(dateStr) {
+  if (!dateStr) return "—";
+  const diff = Math.floor((Date.now() - new Date(dateStr)) / 1000);
+  if (diff < 60)   return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)} minutes ago`;
+  if (diff < 86400)return `${Math.floor(diff / 3600)} hours ago`;
+  return `${Math.floor(diff / 86400)} days ago`;
+}
+
 /* ═══════════════════════════════════════════════════════════════
    MAIN PAGE
 ═══════════════════════════════════════════════════════════════ */
@@ -82,6 +92,8 @@ export default function AnalyticsPage() {
         const data = await res.json();
         if (!data.success) throw new Error(data.message);
         setAnalytics(data);
+        // AI report is already in the response — no separate fetch needed
+        if (data.aiReport?.text) setReport(data.aiReport.text);
       } catch (e) {
         setError("Failed to load analytics. " + e.message);
       } finally {
@@ -243,20 +255,12 @@ export default function AnalyticsPage() {
   }, [analytics]);
 
   /* ── Generate AI report ── */
-  const handleGenerateReport = async () => {
-    if (!analytics?.hasData) return;
+  const handleRegenerateReport = async () => {
     setReportLoading(true);
-    setReport("");
     try {
       const res  = await fetch(`${import.meta.env.VITE_API_URL}/api/analytics/report`, {
         method:  "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body:    JSON.stringify({
-          overallStats:   analytics.overallStats,
-          scoreTrend:     analytics.scoreTrend,
-          totalViolations: analytics.totalViolations,
-          attemptDetails: analytics.attemptDetails,
-        }),
       });
       const data = await res.json();
       if (data.success) setReport(data.report);
@@ -297,7 +301,7 @@ export default function AnalyticsPage() {
             <div className="w-24 h-24 bg-cream/50 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner">
                 <TrendingUp className="w-10 h-10 text-foreground/40" />
             </div>
-            <h2 className="text-2xl font-bold mb-3 text-foreground">No data yet</h2>
+            <h2 className="text-2xl font-bold mb-3 text-foreground">No assessment attempts yet</h2>
             <p className="text-foreground/60 font-medium">
                 Complete your first module test to unlock your personalized analytics dashboard.
             </p>
@@ -316,8 +320,13 @@ export default function AnalyticsPage() {
         <div>
             <h1 className="text-4xl font-black text-foreground tracking-tight mb-2">Analytics Dashboard</h1>
             <p className="text-foreground/60 font-medium text-lg">
-            Track your assessment performance across all modules.
+              Track your assessment performance across all modules.
             </p>
+            {analytics?.computedAt && (
+              <p className="text-sm text-muted-foreground mt-2 font-bold tracking-widest uppercase opacity-70">
+                Last updated: {formatTimeAgo(analytics.computedAt)}
+              </p>
+            )}
         </div>
         <div className="bg-cream/40 px-6 py-4 rounded-2xl flex items-center gap-4 border border-cream/80">
             <Award className="w-8 h-8 text-yellow" />
@@ -326,6 +335,39 @@ export default function AnalyticsPage() {
                 <p className="text-xl font-black text-foreground leading-none">{overallStats.totalAttempts}</p>
             </div>
         </div>
+      </div>
+
+      {/* ── AI Report ── */}
+      <div className="bg-card border-2 border-cream rounded-3xl p-6 md:p-8 bg-white shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+          <div>
+            <h3 className="font-black text-xl flex items-center gap-2">
+              <span className="text-red">✨</span> AI performance report
+            </h3>
+            <p className="text-sm text-foreground/50 font-bold uppercase tracking-widest mt-2">
+              Auto-generated after every test · {analytics?.aiReport?.generatedAt
+                ? `Last generated ${formatTimeAgo(analytics.aiReport.generatedAt)}`
+                : "Not yet generated"}
+            </p>
+          </div>
+          <Button onClick={handleRegenerateReport} disabled={reportLoading} className="shrink-0 bg-secondary text-foreground hover:bg-cream border border-cream font-bold">
+            {reportLoading
+              ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Generating…</>
+              : "↻ Regenerate"}
+          </Button>
+        </div>
+
+        {report ? (
+          <div className="mt-4 p-6 bg-cream/20 rounded-2xl border border-cream text-sm md:text-base leading-relaxed font-medium text-foreground whitespace-pre-wrap shadow-inner">
+            {report}
+          </div>
+        ) : (
+          <div className="mt-4 p-8 border-2 border-dashed border-cream/80 rounded-2xl text-center text-foreground/50 text-sm font-bold tracking-widest uppercase">
+            {analytics?.overallStats?.totalAttempts > 0
+              ? "Report is being generated — check back in a moment."
+              : "Complete your first module test to see your AI coaching report."}
+          </div>
+        )}
       </div>
 
       {/* ── Stat Cards Row ── */}
@@ -446,42 +488,6 @@ export default function AnalyticsPage() {
             </tbody>
           </table>
         </div>
-      </div>
-
-      {/* ── AI Report ── */}
-      <div className="bg-red text-white border border-red/40 rounded-3xl p-8 md:p-10 shadow-md relative overflow-hidden group">
-        <div className="absolute top-[-50%] right-[-10%] w-[50%] h-[200%] bg-white/10 rounded-full blur-3xl transform rotate-45 pointer-events-none group-hover:bg-white/20 transition-all"></div>
-        
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 relative z-10">
-          <div>
-            <h3 className="font-black text-2xl mb-1 flex items-center gap-3">
-              ✨ Personalised AI Report
-            </h3>
-             <p className="text-white/80 font-medium max-w-xl text-sm">
-              Get an instant, actionable breakdown of your performance, proctoring integrity, and learning velocity generated by Enliven AI.
-            </p>
-          </div>
-          <button 
-            className="px-8 py-4 bg-white text-red font-extrabold rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center justify-center shrink-0 disabled:opacity-70 disabled:cursor-not-allowed hover:-translate-y-0.5"
-            onClick={handleGenerateReport} disabled={reportLoading}
-          >
-            {reportLoading
-              ? <><Loader2 className="w-5 h-5 animate-spin mr-3" />Generating Insights…</>
-              : report ? "Regenerate Report" : "Generate Report"}
-          </button>
-        </div>
-
-        {report && (
-          <div className="p-8 bg-black/10 backdrop-blur-sm rounded-2xl border border-white/20 text-sm md:text-base leading-relaxed whitespace-pre-wrap font-medium relative z-10 shadow-inner">
-            {report}
-          </div>
-        )}
-
-        {!report && !reportLoading && (
-          <div className="p-10 border-2 border-dashed border-white/30 rounded-2xl text-center text-white/60 font-bold uppercase tracking-widest text-sm relative z-10">
-            Click "Generate report" to analyse your data.
-          </div>
-        )}
       </div>
 
     </div>

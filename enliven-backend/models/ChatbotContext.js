@@ -34,6 +34,11 @@ const contextSchema = new mongoose.Schema({
   */
   context:  { type: Object,          default: {} },
   messages: { type: [messageSchema], default: [] },
+  lastUpdated: { type: Date, default: Date.now }
+});
+
+contextSchema.pre('save', function() {
+  this.lastUpdated = new Date();
 });
 
 // Compound unique index: one context per (user, course)

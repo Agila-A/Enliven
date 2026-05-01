@@ -1,40 +1,18 @@
-// pages/StudyBuddyChat.jsx
-// Per-course Study Buddy: loads context and history keyed by courseId.
-// courseId is read from localStorage("activeCourseId"), falling back to
-// the first enrollment fetched from the API.
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Send, Bot, BookOpen, ChevronDown, ChevronUp,
   AlertCircle, Sparkles, BarChart2, ChevronRight,
+  BookText, HelpCircle, LayoutGrid, Code, ListOrdered
 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import mermaid from "mermaid";
+import hljs from "highlight.js";
+import 'highlight.js/styles/github-dark.css';
 
-/* ── Lightweight markdown renderer ── */
-function renderMd(text) {
-  if (!text) return "";
-  return text
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/```([\s\S]*?)```/g, '<pre class="sb-code">$1</pre>')
-    .replace(/`([^`]+)`/g, '<code class="sb-inline-code">$1</code>')
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.+?)\*/g,     "<em>$1</em>")
-    .replace(/^### (.+)$/gm, '<p class="sb-h3">$1</p>')
-    .replace(/^## (.+)$/gm,  '<p class="sb-h2">$1</p>')
-    .replace(/^- (.+)$/gm,   '<li class="sb-li">$1</li>')
-    .replace(/(<li[\s\S]*?<\/li>)/g, '<ul class="sb-ul">$&</ul>')
-    .replace(/\n\n+/g, "<br/><br/>")
-    .replace(/\n/g,    "<br/>");
-}
+import FlashcardCarousel from "../studybuddy/FlashcardCarousel";
+import MiniQuiz from "../studybuddy/MiniQuiz";
 
-const QUICK_PROMPTS = [
-  "What should I study next?",
-  "How did I do on my last test?",
-  "Explain my current topic simply",
-  "Give me a study tip for today",
-];
-
-function formatCourseId(id = "") {
-  return id.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-}
+mermaid.initialize({ startOnLoad: false, theme: "neutral" });
 
 export default function StudyBuddyChat() {
   const [messages,    setMessages]    = useState([]);
@@ -47,10 +25,19 @@ export default function StudyBuddyChat() {
   const [courseId,    setCourseId]    = useState(null);
   const [enrollments, setEnrollments] = useState([]);
   const [showPicker,  setShowPicker]  = useState(false);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   const bottomRef   = useRef(null);
   const textareaRef = useRef(null);
   const inputRef    = useRef(null);
+  const autoPromptSent = useRef(false);
+
+  const params = new URLSearchParams(window.location.search);
+  const promptParam = params.get("prompt");
+  const urlModuleTitle = params.get("moduleTitle");
+  const urlDomain = params.get("domain");
+  const urlLevel = params.get("level");
+  const urlModuleId = params.get("module");
 
   /* ── Resolve courseId then load history + context ── */
   useEffect(() => {
@@ -59,33 +46,33 @@ export default function StudyBuddyChat() {
       const headers = { Authorization: `Bearer ${token}` };
 
       try {
+        // 1. Sync enrolled courses first
+        const syncRes = await fetch(`${import.meta.env.VITE_API_URL}/api/chatbot/context/sync-courses`, {
+          method: "POST",
+          headers
+        });
+        const syncData = await syncRes.json();
+        const list = syncData.enrolledCourses || [];
+        setEnrollments(list);
+
         let activeCourseId = localStorage.getItem("activeCourseId");
 
-        if (!activeCourseId) {
-          const enrollRes  = await fetch(`${import.meta.env.VITE_API_URL}/api/user/enrollments`, { headers });
-          const enrollData = await enrollRes.json();
-          const list       = enrollData.enrollments || [];
-          setEnrollments(list);
-
-          if (list.length === 0) {
-            setFetching(false);
-            return;
-          }
+        if (!activeCourseId && list.length > 0) {
           activeCourseId = list[0].courseId;
           localStorage.setItem("activeCourseId", activeCourseId);
-        } else {
-          fetch(`${import.meta.env.VITE_API_URL}/api/user/enrollments`, { headers })
-            .then((r) => r.json())
-            .then((d) => setEnrollments(d.enrollments || []))
-            .catch(() => {});
+        }
+
+        if (!activeCourseId) {
+          setFetching(false);
+          return;
         }
 
         setCourseId(activeCourseId);
         await loadCourse(activeCourseId, token);
+
       } catch (err) {
         console.error("StudyBuddy init:", err);
         setError("Couldn't load your chat history.");
-      } finally {
         setFetching(false);
       }
     }
@@ -107,30 +94,19 @@ export default function StudyBuddyChat() {
       mergedCtx = { ...ctx.context, ...(ctx.context.context || {}) };
     }
 
-    // Problem 4 (Fix): Seed context if moduleTitle is missing on mount
-    // so new users immediately have their first module populated
-    if (!mergedCtx.moduleTitle) {
-      try {
-        const rmRes = await fetch(`${import.meta.env.VITE_API_URL}/api/roadmap/my-roadmap?courseId=${encodeURIComponent(cid)}`, { headers });
-        const rmData = await rmRes.json();
-        if (rmData.success && rmData.roadmap) {
-          const rDomain = rmData.roadmap.domain;
-          const rLevel = rmData.roadmap.skillLevel;
-          const firstTopic = rmData.roadmap.topics?.[0];
-          const moduleTitle = firstTopic ? firstTopic.title : null;
-          const totalModules = rmData.roadmap.topics ? rmData.roadmap.topics.length : 0;
-          
+    // Silent context update if opened from a module
+    if (urlModuleTitle && urlDomain && urlLevel && urlModuleId) {
+       try {
           await fetch(`${import.meta.env.VITE_API_URL}/api/chatbot/context/update`, {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
             body: JSON.stringify({
               courseId: cid,
-              event: "study_buddy_opened",
-              domain: rDomain,
-              skillLevel: rLevel,
-              currentModule: "1",
-              moduleTitle: moduleTitle,
-              totalModules: totalModules
+              event: "study_started",
+              domain: urlDomain,
+              skillLevel: urlLevel,
+              currentModule: urlModuleId,
+              currentModuleTitle: urlModuleTitle
             })
           });
           
@@ -139,13 +115,14 @@ export default function StudyBuddyChat() {
           if (ctx2.success && ctx2.context) {
             mergedCtx = { ...ctx2.context, ...(ctx2.context.context || {}) };
           }
-        }
-      } catch (err) {
-        console.error("Failed to seed roadmap context:", err);
-      }
+       } catch (err) {
+          console.error("Failed to seed roadmap context:", err);
+       }
     }
 
     setContext(mergedCtx);
+    setFetching(false);
+    setInitialLoadDone(true);
   }
 
   /* ── Switch course from the picker ── */
@@ -181,17 +158,47 @@ export default function StudyBuddyChat() {
     el.style.height = Math.min(el.scrollHeight, 120) + "px";
   }, [input]);
 
+  /* ── Render Mermaid Diagrams ── */
+  useEffect(() => {
+    const renderMermaid = async () => {
+      try {
+        await mermaid.run({
+          nodes: document.querySelectorAll('.mermaid'),
+        });
+      } catch (err) {
+        // Suppress mermaid errors on incomplete strings
+      }
+    };
+    if (messages.length > 0) {
+      setTimeout(renderMermaid, 50);
+    }
+  }, [messages]);
+
+  /* ── Syntax Highlighting ── */
+  useEffect(() => {
+    document.querySelectorAll('pre code').forEach((el) => {
+      hljs.highlightElement(el);
+    });
+  }, [messages]);
+
+  /* ── Auto-prompt from URL ── */
+  useEffect(() => {
+    if (promptParam && !initialLoadDone) return; // wait for load
+    if (promptParam && initialLoadDone && !autoPromptSent.current) {
+      autoPromptSent.current = true;
+      sendMessage(promptParam);
+    }
+  }, [initialLoadDone, promptParam]); // Removed sendMessage dependency to avoid re-runs when loading state changes
+
   /* ── Send message ── */
   const sendMessage = useCallback(async (text) => {
     const trimmed = (text ?? input).trim();
     if (!trimmed || loading || !courseId) return;
 
-    // Problem 8: clear error FIRST
     setError("");
     setInput("");
     
     setMessages((prev) => {
-      // Problem 8: Prevent duplicate user message on retry
       if (prev.length > 0) {
         const last = prev[prev.length - 1];
         if (last.sender === "user" && last.text === trimmed) return prev;
@@ -211,9 +218,8 @@ export default function StudyBuddyChat() {
       const data = await res.json();
       if (!data.success) throw new Error(data.message || "No reply");
       
-      setMessages((prev) => [...prev, { sender: "assistant", text: data.reply }]);
+      setMessages((prev) => [...prev, { sender: "assistant", text: data.reply, intent: data.intent }]);
 
-      // Problem 10: Refresh context ONLY if contextUpdated is true
       if (data.contextUpdated) {
         const ctxRes  = await fetch(
           `${import.meta.env.VITE_API_URL}/api/chatbot/context?courseId=${encodeURIComponent(courseId)}`,
@@ -231,7 +237,7 @@ export default function StudyBuddyChat() {
       console.error("sendMessage:", err);
       setError("Failed to get a response. Please try again.");
       setInput(trimmed);
-      setMessages((prev) => prev.slice(0, -1)); // Remove the optimistic user message so they can re-click send
+      setMessages((prev) => prev.slice(0, -1));
     } finally {
       setLoading(false);
       inputRef.current?.focus();
@@ -242,7 +248,114 @@ export default function StudyBuddyChat() {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   };
 
-  /* ── Context panel helpers ── */
+  /* ── Message Rendering Logic ── */
+  const renderMessageContent = (msg) => {
+    if (!msg || !msg.text) return <p className="text-muted-foreground italic text-sm">Empty message</p>;
+
+    if (msg.sender === "user") {
+      return <p className="leading-relaxed whitespace-pre-wrap font-medium">{msg.text}</p>;
+    }
+
+    // Try to parse JSON for assistant messages
+    let parsed = null;
+    let intent = msg.intent;
+
+    try {
+      const textToParse = msg.text.trim();
+      if (textToParse.startsWith("{")) {
+        parsed = JSON.parse(textToParse);
+        if (parsed.type) intent = parsed.type;
+      }
+    } catch (e) {
+      console.warn("Chatbot JSON parse failed:", e);
+    }
+
+    if (parsed) {
+      if (intent === "flashcards" && parsed.cards) {
+        return <FlashcardCarousel cards={parsed.cards} />;
+      }
+      
+      if (intent === "diagram" && parsed.mermaid) {
+        return (
+          <div className="w-full flex flex-col items-center bg-[var(--card)] p-4 rounded-xl shadow-sm border border-[var(--enliven-cream)] overflow-hidden">
+             {parsed.title && <h4 className="font-bold mb-4 text-[var(--foreground)]">{parsed.title}</h4>}
+             <div className="mermaid w-full text-center overflow-x-auto bg-white rounded-xl p-4">{parsed.mermaid}</div>
+          </div>
+        );
+      }
+
+      if (intent === "quiz" && parsed.questions) {
+        return <MiniQuiz questions={parsed.questions} />;
+      }
+
+      if (intent === "steps" && parsed.steps) {
+        return (
+          <div className="w-full text-[var(--foreground)]">
+            {parsed.title && <h3 className="font-bold text-lg mb-4 text-[var(--enliven-purple)]">{parsed.title}</h3>}
+            <div className="space-y-4">
+              {parsed.steps.map((step, i) => (
+                <details key={i} className="group bg-[var(--card)] border-2 border-[var(--enliven-cream)] rounded-xl open:border-[var(--enliven-purple)] transition-all">
+                  <summary className="flex items-center gap-3 p-4 cursor-pointer font-bold select-none list-none [&::-webkit-details-marker]:hidden">
+                     <span className="shrink-0 w-8 h-8 rounded-full bg-[var(--enliven-cream)] text-[var(--enliven-purple)] flex items-center justify-center text-sm">{step.number}</span>
+                     <span>{step.title}</span>
+                     <ChevronDown className="w-4 h-4 ml-auto transition-transform group-open:rotate-180 text-[var(--muted-foreground)]" />
+                  </summary>
+                  <div className="px-4 pb-4 pt-1 text-[var(--foreground)] font-medium pl-[52px]">
+                    {step.content}
+                  </div>
+                </details>
+              ))}
+            </div>
+          </div>
+        );
+      }
+
+      if (intent === "example" || intent === "analogy") {
+        return (
+          <div className="w-full text-[var(--foreground)] space-y-3">
+             <p className="font-medium text-[var(--muted-foreground)]">{parsed.explanation}</p>
+             {parsed.code ? (
+               <div className="relative group rounded-xl overflow-hidden shadow-sm">
+                 <div className="bg-gray-800 text-gray-400 text-xs px-4 py-1 uppercase tracking-widest font-bold flex justify-between">
+                   <span>{parsed.language || "Code"}</span>
+                 </div>
+                 <pre className="!m-0 !p-4 !bg-gray-900 text-sm overflow-x-auto"><code className={`language-${parsed.language || 'javascript'}`}>{String(parsed.code || "")}</code></pre>
+               </div>
+             ) : parsed.analogy ? (
+               <blockquote className="border-l-4 border-[var(--enliven-purple)] pl-4 italic text-[var(--foreground)] opacity-90 bg-[var(--card)] py-2 pr-2 rounded-r-lg">
+                 "{String(parsed.analogy || "")}"
+               </blockquote>
+             ) : null}
+          </div>
+        );
+      }
+    }
+
+    // Fallback or "chat" / "explain" intent
+    return (
+      <div className="sb-markdown font-medium leading-relaxed">
+         <ReactMarkdown>{String(msg.text || "")}</ReactMarkdown>
+      </div>
+    );
+  };
+
+  /* ── Quick Action Prompts ── */
+  const getQuickActions = () => {
+    const topic = urlModuleTitle ? urlModuleTitle : "this concept";
+    return [
+      { icon: <BookText className="w-4 h-4"/>, label: "Explain", prompt: `Explain ${topic} to me` },
+      { icon: <LayoutGrid className="w-4 h-4"/>, label: "Flashcards", prompt: `Give me flashcards for ${topic}` },
+      { icon: <Bot className="w-4 h-4"/>, label: "Diagram", prompt: `Show me a diagram for ${topic}` },
+      { icon: <HelpCircle className="w-4 h-4"/>, label: "Quiz me", prompt: `Quiz me on ${topic}` },
+      { icon: <Code className="w-4 h-4"/>, label: "Example", prompt: `Give me a code example for ${topic}` },
+      { icon: <ListOrdered className="w-4 h-4"/>, label: "Step by step", prompt: `Walk me through ${topic} step by step` },
+    ];
+  };
+
+  const formatCourseId = (id = "") => {
+    return id.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  };
+
   const lastA    = context?.lastAssessment;
   const avgScore = context?.assessmentHistory?.length
     ? Math.round(context.assessmentHistory.reduce((s, a) => s + a.score, 0) / context.assessmentHistory.length)
@@ -252,13 +365,22 @@ export default function StudyBuddyChat() {
   return (
     <>
       <style>{`
-        .sb-code { display:block; background:rgba(242,231,203,0.4); color:var(--foreground); border-radius:12px; padding:12px 16px; font-size:13px; line-height:1.6; overflow-x:auto; margin:12px 0; font-family:'JetBrains Mono','Fira Code',monospace; white-space:pre; border:1px solid rgba(242,231,203,0.8); }
-        .sb-inline-code { background:rgba(242,231,203,0.6); color:var(--enliven-mauve); border-radius:6px; padding:2px 6px; font-size:13px; font-family:monospace; font-weight:500; }
-        .sb-h2 { font-size:16px; font-weight:800; margin:12px 0 4px; color:inherit; }
-        .sb-h3 { font-size:14px; font-weight:700; margin:10px 0 4px; color:inherit; }
-        .sb-ul { padding-left:20px; margin:8px 0; list-style-type:disc; }
-        .sb-li { margin:4px 0; font-size:14px; line-height:1.6; }
-        .custom-scrollbar::-webkit-scrollbar { width:6px; }
+        .sb-markdown p { margin-bottom: 1rem; }
+        .sb-markdown p:last-child { margin-bottom: 0; }
+        .sb-markdown ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1rem; }
+        .sb-markdown ol { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 1rem; }
+        .sb-markdown li { margin-bottom: 0.25rem; }
+        .sb-markdown code { background: rgba(0,0,0,0.05); padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-family: monospace; font-size: 0.875em; }
+        .sb-markdown pre code { background: transparent; padding: 0; }
+        .sb-markdown pre { background: rgba(0,0,0,0.8); color: white; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin-bottom: 1rem; }
+        .sb-markdown h1, .sb-markdown h2, .sb-markdown h3 { font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; }
+        .sb-markdown h1 { font-size: 1.5rem; }
+        .sb-markdown h2 { font-size: 1.25rem; }
+        .sb-markdown h3 { font-size: 1.125rem; }
+        .sb-markdown strong { font-weight: bold; }
+        .sb-markdown em { font-style: italic; }
+        
+        .custom-scrollbar::-webkit-scrollbar { width:6px; height:6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background:transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background:rgba(0,0,0,0.1); border-radius:10px; }
       `}</style>
@@ -275,14 +397,21 @@ export default function StudyBuddyChat() {
               <div>
                 <p className="font-extrabold text-[var(--foreground)] text-lg leading-tight tracking-tight mt-1">Study Buddy</p>
                 {/* Course switcher pill */}
-                <button
-                  onClick={() => setShowPicker((v) => !v)}
-                  className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-widest text-[var(--muted-foreground)] mt-1 hover:text-[var(--enliven-purple)] transition-colors"
-                >
-                  <BookOpen className="w-3 h-3" />
-                  {courseId ? formatCourseId(courseId) : "No course selected"}
-                  <ChevronRight className={`w-3 h-3 transition-transform ${showPicker ? "rotate-90" : ""}`} />
-                </button>
+                {enrollments.length > 1 ? (
+                   <button
+                     onClick={() => setShowPicker((v) => !v)}
+                     className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-widest text-[var(--muted-foreground)] mt-1 hover:text-[var(--enliven-purple)] transition-colors"
+                   >
+                     <BookOpen className="w-3 h-3" />
+                     {courseId ? formatCourseId(courseId) : "No course selected"}
+                     <ChevronRight className={`w-3 h-3 transition-transform ${showPicker ? "rotate-90" : ""}`} />
+                   </button>
+                ) : (
+                   <div className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-widest text-[var(--muted-foreground)] mt-1">
+                     <BookOpen className="w-3 h-3" />
+                     {courseId ? formatCourseId(courseId) : "No course selected"}
+                   </div>
+                )}
               </div>
             </div>
 
@@ -297,8 +426,8 @@ export default function StudyBuddyChat() {
           </div>
 
           {/* ── Course Picker Dropdown ── */}
-          {showPicker && (
-            <div className="bg-[var(--card)] border-b-2 border-[var(--enliven-cream)] px-6 py-4 shrink-0">
+          {showPicker && enrollments.length > 1 && (
+            <div className="bg-[var(--card)] border-b-2 border-[var(--enliven-cream)] px-6 py-4 shrink-0 z-20">
               <p className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-widest mb-3">Switch Course</p>
               <div className="flex flex-wrap gap-2">
                 {enrollments.map((e) => (
@@ -328,9 +457,9 @@ export default function StudyBuddyChat() {
                 { label: "Course",     value: courseId ? formatCourseId(courseId) : "—" },
                 { label: "Domain",     value: context?.domain     || "—" },
                 { label: "Level",      value: context?.skillLevel || "—" },
-                { label: "Module",     value: context?.moduleTitle || (context?.currentModule != null ? `Module ${context.currentModule}` : "—") },
-                { label: "Last Lesson",value: context?.lastLessonTitle || "None yet" }, // Problem 7
-                { label: "Last Event", value: context?.lastEvent || "—" }, // Problem 7 Debug Pill
+                { label: "Module",     value: context?.currentModuleTitle || (context?.currentModule != null ? `Module ${context.currentModule}` : "—") },
+                { label: "Last Lesson",value: context?.lastLessonTitle || "None yet" },
+                { label: "Last Event", value: context?.lastEvent || "—" },
                 { label: "Completed",
                   value: Array.isArray(context?.completedModules) && context.completedModules.length
                     ? `Modules ${context.completedModules.join(", ")}`
@@ -379,17 +508,6 @@ export default function StudyBuddyChat() {
                     I know your course, skill level, and how your tests went. Ask me anything to get personalized help.
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-3 justify-center mt-4">
-                  {QUICK_PROMPTS.map((p, i) => (
-                    <button
-                      key={i}
-                      onClick={() => sendMessage(p)}
-                      className="px-4 py-2.5 rounded-xl font-bold text-sm border-2 border-[var(--enliven-cream)] bg-[var(--card)] text-[var(--foreground)]/70 hover:bg-[var(--secondary)] hover:text-[var(--foreground)] transition-all transform hover:-translate-y-0.5 shadow-sm"
-                    >
-                      {p}
-                    </button>
-                  ))}
-                </div>
               </div>
 
             ) : (
@@ -402,15 +520,12 @@ export default function StudyBuddyChat() {
                         <Bot className="w-5 h-5" />
                       </div>
                     )}
-                    <div className={`max-w-[80%] rounded-[1.5rem] px-6 py-4 shadow-sm relative ${
+                    <div className={`max-w-[90%] md:max-w-[80%] rounded-[1.5rem] px-6 py-4 shadow-sm relative overflow-hidden ${
                       isUser
                         ? "bg-[var(--enliven-purple)] text-white rounded-br-md border border-[var(--enliven-purple)]"
                         : "bg-[var(--card)] text-[var(--foreground)] border-2 border-[var(--enliven-cream)] rounded-bl-md"
                     }`}>
-                      {isUser
-                        ? <p className="leading-relaxed whitespace-pre-wrap font-medium">{msg.text}</p>
-                        : <div className="leading-relaxed font-medium" dangerouslySetInnerHTML={{ __html: renderMd(msg.text) }} />
-                      }
+                      {renderMessageContent(msg)}
                       {msg.timestamp && (
                         <p className={`text-[10px] uppercase font-bold tracking-wider mt-3 ${isUser ? "text-white/60" : "text-[var(--muted-foreground)]"}`}>
                           {new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -444,7 +559,7 @@ export default function StudyBuddyChat() {
 
             {/* Error */}
             {error && (
-              <div className="flex items-center justify-center mx-auto max-w-md w-full">
+              <div className="flex items-center justify-center mx-auto max-w-md w-full mt-2">
                 <div className="flex items-center gap-3 text-sm px-6 py-4 rounded-2xl bg-[var(--enliven-cream)] text-[var(--enliven-purple)] font-bold border border-[var(--enliven-purple)] shadow-sm">
                   <AlertCircle className="w-5 h-5 shrink-0" />
                   {error}
@@ -455,6 +570,31 @@ export default function StudyBuddyChat() {
             <div ref={bottomRef} className="h-4" />
           </div>
 
+          {urlModuleTitle && (
+            <div className="bg-[var(--enliven-purple)]/10 border-t-2 border-[var(--enliven-purple)]/20 px-6 py-2 shrink-0 flex items-center justify-center z-10">
+              <p className="text-[10px] font-bold text-[var(--enliven-purple)] uppercase tracking-widest">
+                Currently studying: {urlModuleTitle} · {urlDomain} ({urlLevel})
+              </p>
+            </div>
+          )}
+
+          {/* ── Quick Action Bar ── */}
+          {courseId && (
+            <div className="shrink-0 bg-[var(--card)] border-t-2 border-[var(--enliven-cream)] px-2 sm:px-6 py-3 flex gap-2 overflow-x-auto custom-scrollbar whitespace-nowrap z-10">
+               {getQuickActions().map((action, idx) => (
+                 <button
+                   key={idx}
+                   onClick={() => sendMessage(action.prompt)}
+                   disabled={loading}
+                   className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-[var(--secondary)] text-[var(--foreground)] border-2 border-[var(--enliven-cream)] hover:border-[var(--enliven-purple)] hover:text-[var(--enliven-purple)] transition-all disabled:opacity-50 shadow-sm"
+                 >
+                   {action.icon}
+                   {action.label}
+                 </button>
+               ))}
+            </div>
+          )}
+
           {/* ── Input bar ── */}
           <div className="shrink-0 bg-[var(--card)] border-t-2 border-[var(--enliven-cream)] px-6 py-5 z-10 relative">
             <div className="flex gap-4 items-end mx-auto">
@@ -464,7 +604,7 @@ export default function StudyBuddyChat() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={onKeyDown}
-                  placeholder={courseId ? "Ask Study Buddy anything about your learning path…" : "Select a course first…"}
+                  placeholder={courseId ? "Ask Study Buddy anything..." : "Select a course first..."}
                   rows={1}
                   disabled={loading || !courseId}
                   className="flex-1 bg-transparent px-5 py-4 text-base font-medium text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] resize-none outline-none custom-scrollbar"

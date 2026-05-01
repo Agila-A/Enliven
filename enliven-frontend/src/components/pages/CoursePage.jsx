@@ -1,28 +1,14 @@
-/*
-  COURSEPAGE.JSX — MODULE LOCKING + MODULE TESTS + FINAL TEST
-*/
-
-import React, { useEffect, useMemo, useState } from "react";
-import ReactMarkdown from "react-markdown";
+import React, { useEffect, useState, useMemo } from "react";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
-  Play,
-  CheckCircle,
+  BookOpen,
   CheckCircle2,
   Lock,
-  ChevronDown,
-  ChevronRight,
-  FileText,
-  Download,
-  LoaderCircle,
-  BookOpen,
   Code,
-  ShieldCheck
+  ShieldCheck,
+  Bot
 } from "lucide-react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { Button } from "../ui/button";
 import { ProgressBar } from "../ProgressBar";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "../ui/tabs";
-import { updateStudyBuddyContext } from "../../utils/studyBuddy.js";
 
 const toTitleCase = (s = "") =>
   s.replace(/-/g, " ").split(" ").filter(Boolean)
@@ -31,233 +17,62 @@ const toTitleCase = (s = "") =>
 
 const cap1 = (s = "") => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 
-const convertToEmbed = (url = "") => {
-  try {
-    if (url.includes("watch?v=")) return url.replace("watch?v=", "embed/");
-    if (url.includes("youtu.be")) {
-      const id = url.split("youtu.be/")[1].split("?")[0];
-      return `https://www.youtube.com/embed/${id}`;
-    }
-    return url;
-  } catch {
-    return url;
-  }
-};
-
-const buildCourseId = (domain, level) => `${domain}-${level}`;
-const buildTopicId = (sequenceNumber) => String(sequenceNumber);
-
-function normalizeProgress(progressArray = []) {
-  const map = new Map();
-  for (const p of progressArray) {
-    const vp = new Map();
-    if (p.videoProgress && typeof p.videoProgress === "object") {
-      for (const [k, v] of Object.entries(p.videoProgress))
-        vp.set(Number(k), !!v);
-    }
-    map.set(String(p.topicId), {
-      videoProgress: vp,
-      currentIndex: Number(p.currentIndex ?? 0),
-    });
-  }
-  return map;
-}
-
-const mapToObj = (m) => {
-  const o = {};
-  for (const [k, v] of m.entries()) o[String(k)] = !!v;
-  return o;
-};
+const toSlug = s => String(s || "").toLowerCase().replace(/\s+/g, "-");
+const toLevel = s => String(s || "").replace(/[^a-zA-Z\s]/g, "").toLowerCase().replace(/[^a-z]/g, "");
 
 export default function CoursePage() {
   const { domain, level } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();  
-  const courseId = useMemo(() => buildCourseId(domain, level), [domain, level]);
+  const location = useLocation();
+  const courseId = useMemo(() => `${toSlug(domain)}-${toLevel(level)}`, [domain, level]);
 
-  const [sections, setSections] = useState([]);
-  const [activeLesson, setActiveLesson] = useState(null);
+  const [topics, setTopics] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [notesLoading, setNotesLoading] = useState(false);
-  const [autoNotes, setAutoNotes] = useState("");
   const [error, setError] = useState("");
-
+  
   const [moduleStatus, setModuleStatus] = useState({});
+  const [progressData, setProgressData] = useState([]);
 
-  useEffect(() => {
-    let mounted = true;
+  const [projectModalOpen, setProjectModalOpen] = useState(false);
+  const [projectLink, setProjectLink] = useState("");
 
-    async function load() {
-      setLoading(true);
-      setError("");
-
-      try {
-        const token = localStorage.getItem("token");
-
-        const res = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/courses/${domain}/${level}/merged`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-
-        if (!res.ok) {
-          const txt = await res.text();
-          throw new Error(`Course load failed: ${res.status} ${txt}`);
-        }
-
-        const data = await res.json();
-        if (!data.success) throw new Error("Invalid course response");
-
-        const items = Array.isArray(data.items) ? data.items : [];
-
-        const pres = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/progress/${courseId}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-
-        const pjson = pres.ok
-          ? await pres.json()
-          : { success: true, progress: [], moduleStatus: {}, finalCompleted: false };
-
-        const progressMap = normalizeProgress(pjson.progress || []);
-
-        const dbModuleStatus = pjson.moduleStatus || {};
-        if (mounted) setModuleStatus(dbModuleStatus);
-
-        const builtSections = items.map((step) => {
-          const topicId = buildTopicId(step.sequenceNumber);
-          const lessons = [];
-
-          (step.videos || []).forEach((video, vidx) => {
-            lessons.push({
-              id: `${step.sequenceNumber}-V${vidx + 1}`,
-              title: video.title || step.title,
-              url: convertToEmbed(video.url || ""),
-              type: "video",
-              status: "locked",
-              topicId,
-              videoIndex: vidx,
-            });
-          });
-
-          (step.resources || []).forEach((file, ridx) => {
-            lessons.push({
-              id: `${step.sequenceNumber}-R${ridx + 1}`,
-              title: file.title || step.title,
-              resource: file.url || file,
-              type: "reading",
-              status: "locked",
-              topicId,
-              videoIndex: null,
-            });
-          });
-
-          return {
-            id: String(step.sequenceNumber),
-            title: step.title,
-            expanded: false,
-            lessons,
-          };
-        });
-
-        for (let i = 0; i < builtSections.length; i++) {
-          const sec = builtSections[i];
-          const isFirstModule = i === 0;
-          const prevModuleId = i > 0 ? builtSections[i - 1].id : null;
-          const prevTestPassed = prevModuleId
-            ? dbModuleStatus[prevModuleId] === "completed"
-            : false;
-
-          const isUnlocked = isFirstModule || prevTestPassed;
-
-          if (isUnlocked) {
-            let firstVideoUnlocked = false;
-            sec.lessons = sec.lessons.map((lesson) => {
-              if (!firstVideoUnlocked && lesson.type === "video") {
-                firstVideoUnlocked = true;
-                return { ...lesson, status: "current" };
-              }
-              return lesson;
-            });
-          }
-        }
-
-        let initialActive = null;
-
-        for (const sec of builtSections) {
-          const p = progressMap.get(sec.id);
-          if (!p) continue;
-
-          for (const lesson of sec.lessons) {
-            if (lesson.type === "video" && lesson.videoIndex != null) {
-              const isDone = p.videoProgress.get(lesson.videoIndex);
-              if (isDone) lesson.status = "completed";
-            }
-          }
-
-          const currentIdx = Number.isFinite(p.currentIndex) ? p.currentIndex : 0;
-          const currentVideoLesson = sec.lessons.find(
-            (l) => l.type === "video" && l.videoIndex === currentIdx
-          );
-
-          if (currentVideoLesson) {
-            currentVideoLesson.status =
-              currentVideoLesson.status === "completed" ? "completed" : "current";
-
-            if (!initialActive) {
-              initialActive = currentVideoLesson;
-              sec.expanded = true;
-            }
-          }
-        }
-
-        if (!initialActive && builtSections[0]?.lessons[0]) {
-          builtSections[0].expanded = true;
-          builtSections[0].lessons[0].status = "current";
-          initialActive = builtSections[0].lessons[0];
-        }
-
-        if (mounted) {
-          setSections(builtSections);
-          setActiveLesson(initialActive || null);
-        }
-      } catch (e) {
-        console.error(e);
-        if (mounted) setError(e.message || "Failed to load course");
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    }
-
-    load();
-    return () => { mounted = false; };
-  }, [domain, level, courseId]);
-
-  const flatLessons = () => sections.flatMap((s) => s.lessons);
-  const totalLessons = flatLessons().length || 1;
-  const completed = flatLessons().filter((l) => l.status === "completed").length;
-  const progress = Math.round((completed / totalLessons) * 100);
-
-  const iconFor = (lesson) => {
-    if (lesson.status === "completed")
-      return <CheckCircle className="w-5 h-5 text-green" />;
-    if (lesson.status === "current")
-      return <Play className="w-5 h-5 text-red" />;
-    return <Lock className="w-5 h-5 text-foreground/30" />;
-  };
-
-  const isSectionCompleted = (section) => {
-    const videos = section.lessons.filter((l) => l.type === "video");
-    if (videos.length === 0) return false;
-    return videos.every((l) => l.status === "completed");
-  };
-
-  const allModulesCompleted =
-    sections.length > 0 && 
-    sections.every(s => isSectionCompleted(s) && moduleStatus[s.topicId || s.id] === "completed");
-
-  const saveProgress = async ({ topicId, videoProgressMap, currentIndex, videoCount }) => {
+  const fetchData = async () => {
     try {
       const token = localStorage.getItem("token");
+      
+      const [roadmapRes, progressRes] = await Promise.all([
+        fetch(`${import.meta.env.VITE_API_URL}/api/roadmap/my-roadmap`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${import.meta.env.VITE_API_URL}/api/progress/${courseId}`, { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+
+      if (!roadmapRes.ok) throw new Error("Failed to load roadmap");
+      const roadmapData = await roadmapRes.json();
+      
+      if (roadmapData.success && roadmapData.roadmap) {
+        setTopics(roadmapData.roadmap.topics || []);
+      }
+
+      if (progressRes.ok) {
+        const pjson = await progressRes.json();
+        setModuleStatus(pjson.moduleStatus || {});
+        setProgressData(pjson.progress || []);
+      }
+    } catch (e) {
+      console.error(e);
+      setError(e.message || "Failed to load course");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [domain, level, courseId, location.key]);
+
+  const handleStudyWithAI = async (topic) => {
+    try {
+      const token = localStorage.getItem("token");
+      const topicId = String(topic.sequenceNumber);
       await fetch(`${import.meta.env.VITE_API_URL}/api/progress/save`, {
         method: "POST",
         headers: {
@@ -267,458 +82,230 @@ export default function CoursePage() {
         body: JSON.stringify({
           courseId,
           topicId,
-          videoProgress: mapToObj(videoProgressMap),
-          currentIndex,
-          videoCount, 
+          studyStarted: true,
         }),
       });
-    } catch (e) {
-      console.error("Progress save error:", e);
-    }
-  };
-
-  const completeCurrentLesson = async () => {
-    if (!activeLesson) return;
-
-    setSections((prev) => {
-      const updated = prev.map((sec) => ({
-        ...sec,
-        lessons: sec.lessons.map((les) =>
-          les.id === activeLesson.id ? { ...les, status: "completed" } : les
-        ),
-      }));
-
-      const all = updated.flatMap((s) => s.lessons);
-      const idx = all.findIndex((l) => l.id === activeLesson.id);
-      const next = all[idx + 1];
-
-      const currentTopicId = activeLesson.topicId;
-      const currentSection = updated.find((s) => s.id === currentTopicId);
-
-      if (currentSection) {
-        const videoProgressMap = new Map();
-        for (const les of currentSection.lessons) {
-          if (les.type === "video" && les.videoIndex != null) {
-            videoProgressMap.set(les.videoIndex, les.status === "completed");
-          }
-        }
-
-        let currentIndex = 0;
-        const firstPending = currentSection.lessons.find(
-          (l) => l.type === "video" && l.videoIndex != null && l.status !== "completed"
-        );
-
-        if (firstPending && typeof firstPending.videoIndex === "number") {
-          currentIndex = firstPending.videoIndex;
-        } else {
-          const keys = [...videoProgressMap.keys()];
-          currentIndex = keys.length ? Math.max(...keys) : 0;
-        }
-
-        const totalVideosInSection = currentSection.lessons.filter(
-          l => l.type === "video" && l.videoIndex != null
-        ).length;
-
-        saveProgress({
-          topicId: currentTopicId,
-          videoProgressMap,
-          currentIndex,
-          videoCount: totalVideosInSection,
-        });
-      }
-
-      if (next && next.status === "locked") {
-        const nextModuleId = next.topicId;
-        const currentModuleId = currentTopicId;
-
-        if (nextModuleId === currentModuleId) {
-          updated.forEach((sec) => {
-            sec.lessons = sec.lessons.map((l) =>
-              l.id === next.id ? { ...l, status: "current" } : l
-            );
-            if (sec.lessons.some((l) => l.id === next.id)) sec.expanded = true;
-          });
-          setTimeout(() => setActiveLesson(next), 0);
-        } else {
-          const testPassed = moduleStatus[currentModuleId] === "completed";
-
-          if (!testPassed) {
-            alert("Complete the module test to unlock the next module.");
-            setTimeout(() => setActiveLesson(activeLesson), 0);
-            return updated;
-          }
-
-          updated.forEach((sec) => {
-            sec.lessons = sec.lessons.map((l) =>
-              l.id === next.id ? { ...l, status: "current" } : l
-            );
-            if (sec.lessons.some((l) => l.id === next.id)) sec.expanded = true;
-          });
-          setTimeout(() => setActiveLesson(next), 0);
-        }
-      } else {
-        setTimeout(() => setActiveLesson(activeLesson), 0);
-      }
-
-      return updated;
-    });
-
-    await updateStudyBuddyContext({
-      step: "lesson_completed",
-      lessonTitle: activeLesson.title,
-      module: activeLesson.topicId,
-    });
-  };
-
-  useEffect(() => {
-    if (!courseId) return;
-    refreshModuleStatus();
-  }, [location.key]); 
-
-  const refreshModuleStatus = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const pres = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/progress/${courseId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (pres.ok) {
-        const pjson = await pres.json();
-        const newStatus = pjson.moduleStatus || {};
-        setModuleStatus(newStatus);
-
-        setSections(prev => {
-          const updated = prev.map((sec, i) => {
-            const isFirst  = i === 0;
-            const prevSec  = i > 0 ? prev[i - 1] : null;
-            const unlocked = isFirst || (prevSec && newStatus[prevSec.id] === "completed");
-
-            if (!unlocked) return sec;
-
-            const hasUnlocked = sec.lessons.some(l => l.status !== "locked");
-            if (hasUnlocked) return sec;
-
-            let firstDone = false;
-            return {
-              ...sec,
-              lessons: sec.lessons.map(l => {
-                if (!firstDone && l.type === "video") {
-                  firstDone = true;
-                  return { ...l, status: "current" };
-                }
-                return l;
-              }),
-            };
-          });
-          return updated;
-        });
-      }
-    } catch (e) {
-      console.error("moduleStatus refresh error:", e);
-    }
-  };
-
-  const generateNotes = async () => {
-    if (!activeLesson?.title) return;
-    setNotesLoading(true);
-    setAutoNotes("");
-    try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/notes/generate`, {
+      await fetch(`${import.meta.env.VITE_API_URL}/api/chatbot/context/update`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ videoTitle: activeLesson.title }),
+        body: JSON.stringify({
+          courseId,
+          event: "study_started",
+          currentModule: topicId,
+          currentModuleTitle: topic.title,
+          domain: domain,
+          skillLevel: level,
+          moduleStatus: moduleStatus
+        }),
       });
-      const data = await res.json();
-      if (data.success) setAutoNotes(data.notes);
+      navigate(`/study-buddy?module=${topic.sequenceNumber}&moduleTitle=${encodeURIComponent(topic.title)}&domain=${domain}&level=${level}`);
     } catch (e) {
-      console.error(e);
-    } finally {
-      setNotesLoading(false);
+      console.error("Failed to save progress", e);
+    }
+  };
+
+  const handleTakeTest = (topic) => {
+    navigate(`/assessment?module=${topic.sequenceNumber}&domain=${domain}&level=${level}&moduleTitle=${encodeURIComponent(topic.title)}`);
+  };
+
+  const submitProject = async (topicId) => {
+    if (!projectLink) return;
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/progress/complete-module`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ courseId, moduleId: topicId, status: "completed" }),
+      });
+      if (res.ok) {
+        alert("Project Submitted Successfully!");
+        setProjectModalOpen(false);
+        setProjectLink("");
+        fetchData(); // Refresh UI
+      }
+    } catch (e) {
+      console.error("Submit project error:", e);
     }
   };
 
   if (loading) return <div className="p-10 flex justify-center"><p className="text-foreground/70 font-medium">Loading…</p></div>;
   if (error) return <div className="p-10 flex justify-center"><p className="text-red font-medium">{error}</p></div>;
 
+  const totalModules = topics.length;
+  const passedModules = Object.values(moduleStatus).filter(v => v === "completed").length;
+  const progressPercent = totalModules > 0 ? Math.round((passedModules / totalModules) * 100) : 0;
+
   return (
-    <div className="flex h-[calc(100vh-6rem)] overflow-hidden bg-cream/20 font-sans mt-3">
-      <div className="flex-1 flex flex-col overflow-hidden px-4 md:px-8 pb-8">
-        
-        {/* Header box */}
-        <div className="bg-white p-6 md:p-8 rounded-3xl border border-cream shadow-sm mb-6 shrink-0 transition-shadow hover:shadow-soft">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div>
-              <div className="flex items-center space-x-3 mb-2">
-                <BookOpen className="w-6 h-6 text-red" />
-                <h1 className="text-3xl font-bold tracking-tight text-foreground">
-                  {toTitleCase(domain)} <span className="text-foreground/50 text-2xl font-semibold">({cap1(level)})</span>
-                </h1>
-              </div>
-              <p className="text-foreground/60 font-medium ml-9">
-                Dynamic adaptive syllabus.
-              </p>
+    <div className="min-h-[calc(100vh-6rem)] bg-cream/20 font-sans mt-3 px-4 md:px-8 pb-10">
+      <div className="bg-white p-6 md:p-8 rounded-3xl border border-cream shadow-sm mb-8 transition-shadow hover:shadow-soft">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div>
+            <div className="flex items-center space-x-3 mb-2">
+              <BookOpen className="w-6 h-6 text-red" />
+              <h1 className="text-3xl font-bold tracking-tight text-foreground">
+                {toTitleCase(domain)} <span className="text-foreground/50 text-2xl font-semibold">({cap1(level)})</span>
+              </h1>
             </div>
-            <div className="md:w-1/3">
-               <ProgressBar progress={progress} colorClass="bg-red" showLabel={true} />
-            </div>
+            <p className="text-foreground/60 font-medium ml-9">
+              Interactive AI Learning Modules
+            </p>
           </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto pr-2 pb-10 custom-scrollbar">
-          {activeLesson?.type === "video" ? (
-            <div className="aspect-video w-full rounded-3xl overflow-hidden bg-foreground shadow-lg border-4 border-white">
-              <iframe
-                width="100%"
-                height="100%"
-                src={activeLesson.url}
-                allowFullScreen
-                title="Lesson video"
-                className="w-full h-full"
-              />
-            </div>
-          ) : (
-            <div className="aspect-video bg-white border border-cream rounded-3xl flex flex-col items-center justify-center shadow-inner">
-              <div className="w-20 h-20 bg-cream/50 rounded-full flex items-center justify-center mb-4">
-                  <FileText className="w-10 h-10 text-red" />
-              </div>
-              <p className="text-xl font-bold text-foreground">Reading Material</p>
-            </div>
-          )}
-
-          <div className="mt-8 flex justify-end">
-            <button 
-              className="px-8 py-3 bg-red text-white font-bold rounded-xl shadow-md hover:bg-red/90 transition-all hover:-translate-y-0.5" 
-              onClick={completeCurrentLesson}
-            >
-              Mark as Completed <CheckCircle className="w-5 h-5 ml-2 inline-block" />
-            </button>
+          <div className="md:w-1/3">
+             <ProgressBar progress={progressPercent} colorClass="bg-red" showLabel={true} />
+             <p className="text-sm font-bold text-foreground/50 text-right mt-1">{passedModules} / {totalModules} Modules Passed</p>
           </div>
-
-          <Tabs defaultValue="overview" className="mt-8">
-            <TabsList className="bg-cream/50 p-1 rounded-xl">
-              <TabsTrigger value="overview" className="rounded-lg font-semibold data-[state=active]:bg-white data-[state=active]:text-red data-[state=active]:shadow-sm transition-all px-6 py-2.5">Overview</TabsTrigger>
-              <TabsTrigger value="notes" className="rounded-lg font-semibold data-[state=active]:bg-white data-[state=active]:text-yellow data-[state=active]:shadow-sm transition-all px-6 py-2.5">AI Notes ✨</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="overview">
-              <div className="p-8 border border-cream rounded-3xl mt-4 bg-white shadow-sm">
-                <h2 className="font-bold text-2xl text-foreground mb-4">{activeLesson?.title || "Lesson Overview"}</h2>
-                <p className="text-foreground/60 leading-relaxed font-medium">Pay close attention to this material—it's essential to pass the module test.</p>
-                {activeLesson?.resource && (
-                  <div className="mt-6">
-                    <a href={activeLesson.resource} target="_blank" rel="noreferrer">
-                      <button className="px-6 py-3 bg-cream/50 text-foreground font-bold rounded-xl border border-cream hover:bg-cream hover:border-yellow transition-all flex items-center">
-                        <Download className="w-5 h-5 mr-3" /> Download Resource
-                      </button>
-                    </a>
-                  </div>
-                )}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="notes">
-              <div className="mt-4 p-8 border border-cream rounded-3xl bg-white shadow-sm">
-                <button 
-                  className={`px-6 py-3 font-bold rounded-xl shadow-sm transition-all flex items-center border-2 border-yellow text-yellow bg-white hover:bg-yellow/10`} 
-                  onClick={generateNotes} disabled={notesLoading}
-                >
-                  {notesLoading ? (
-                    <LoaderCircle className="w-5 h-5 animate-spin mr-3 text-current" />
-                  ) : null}
-                  {notesLoading ? "Generating..." : "✨ Ask AI to Generate Notes"}
-                </button>
-                {autoNotes && (
-                  <div className="mt-8 p-6 bg-cream/20 rounded-2xl border border-cream prose prose-slate max-w-none prose-headings:text-foreground prose-a:text-red">
-                    <ReactMarkdown>{autoNotes}</ReactMarkdown>
-                  </div>
-                )}
-              </div>
-            </TabsContent>
-          </Tabs>
-
-          {/* New: Next Steps Assessment Buttons in Main Viewer */}
-          {(() => {
-            const currentSection = sections.find(s => s.lessons.some(l => l.id === activeLesson?.id));
-            if (!currentSection || !isSectionCompleted(currentSection)) return null;
-            
-            const status = moduleStatus[currentSection.id];
-            
-            if (!status) {
-              return (
-                <div className="mt-10 p-8 bg-orange/10 border-2 border-dashed border-orange/30 rounded-[2rem] text-center">
-                  <ShieldCheck className="w-12 h-12 text-orange-600 mx-auto mb-4" />
-                  <h3 className="text-xl font-bold text-foreground mb-2">Theoretical Knowledge Check</h3>
-                  <p className="text-foreground/60 mb-6 font-medium">You've finished the lessons! Take the MCQ assessment to unlock the coding challenge.</p>
-                  <button
-                    onClick={() => navigate(`/assessment?module=${currentSection.id}&domain=${domain}&level=${level}`)}
-                    className="px-10 py-4 bg-orange-500 text-white font-bold rounded-2xl shadow-md hover:bg-orange-600 transition-all"
-                  >
-                    Start MCQ Assessment
-                  </button>
-                </div>
-              );
-            }
-            
-            if (status === "mcq_passed") {
-              return (
-                <div className="mt-10 p-8 bg-red/5 border-2 border-dashed border-red/20 rounded-[2rem] text-center">
-                  <Code className="w-12 h-12 text-red mx-auto mb-4" />
-                  <h3 className="text-xl font-bold text-foreground mb-2">Hands-on Practice</h3>
-                  <p className="text-foreground/60 mb-6 font-medium">MCQ passed! Now prove your skills with a real-world coding challenge.</p>
-                  <button
-                    onClick={() => navigate(`/coding-assessment?module=${currentSection.id}&domain=${domain}&level=${level}`)}
-                    className="px-10 py-4 bg-red text-white font-bold rounded-2xl shadow-md hover:bg-red/90 transition-all"
-                  >
-                    Start Coding Assessment
-                  </button>
-                </div>
-              );
-            }
-            
-            if (status === "completed") {
-              return (
-                <div className="mt-10 p-8 bg-green/5 border-2 border-dashed border-green/20 rounded-[2rem] text-center">
-                  <CheckCircle2 className="w-12 h-12 text-green mx-auto mb-4" />
-                  <h3 className="text-xl font-bold text-foreground mb-2">Module Mastered!</h3>
-                  <p className="text-foreground/60 mb-2 font-medium">You have successfully completed both assessments for this module.</p>
-                  <p className="text-green font-bold text-sm uppercase tracking-widest">Badge Earned 🎖️</p>
-                </div>
-              );
-            }
-            
-            return null;
-          })()}
         </div>
       </div>
 
-      {/* Sidebar Course Content */}
-      <div className="w-96 bg-white border-l border-cream shadow-sm overflow-y-auto px-6 py-8 rounded-tl-3xl custom-scrollbar hidden xl:block">
-        <h2 className="text-2xl font-bold mb-6 text-foreground tracking-tight px-2">Syllabus</h2>
-
-        {sections.map((section, sIdx) => {
-          const isFirstModule = sIdx === 0;
-          const prevSection   = sIdx > 0 ? sections[sIdx - 1] : null;
-          const prevPassed    = prevSection
-            ? moduleStatus[prevSection.id] === "completed"
-            : false;
-          const isLocked = !isFirstModule && !prevPassed;
-
-          const isActiveModule = section.lessons.some(l => l.id === activeLesson?.id);
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {topics.map((topic, i) => {
+          const topicId = String(topic.sequenceNumber);
+          const isFirst = i === 0;
+          const prevTopicId = i > 0 ? String(topics[i-1].sequenceNumber) : null;
+          const prevPassed = prevTopicId ? moduleStatus[prevTopicId] === "completed" : false;
+          
+          const isLocked = !isFirst && !prevPassed;
+          const testPassed = moduleStatus[topicId] === "completed";
+          const progressEntry = progressData.find(p => String(p.topicId) === topicId);
+          const studyStarted = progressEntry?.studyStarted === true;
 
           return (
-            <div key={section.id} className={`border-2 rounded-2xl mb-4 transition-all overflow-hidden ${isActiveModule ? "border-red/30 shadow-sm" : "border-cream"}`}>
-              <button
-                onClick={() =>
-                  setSections((prev) =>
-                    prev.map((s) =>
-                      s.id === section.id ? { ...s, expanded: !s.expanded } : s
-                    )
-                  )
-                }
-                className={`w-full flex justify-between items-center p-5 transition-colors ${isActiveModule ? "bg-red/5" : "hover:bg-cream/30"}`}
-              >
-                <div className="flex items-center gap-3">
-                  {isLocked && <Lock className="w-5 h-5 text-foreground/30" />}
-                  <span className={`font-bold text-left ${isLocked ? "text-foreground/50" : "text-foreground"}`}>{section.title}</span>
+            <div key={topicId} className={`bg-white rounded-3xl border-2 p-6 flex flex-col justify-between transition-all shadow-sm ${
+              isLocked ? "border-cream/50 opacity-70" : testPassed ? "border-green/50" : "border-cream hover:border-red hover:shadow-md"
+            }`}>
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-sm font-bold text-foreground/50 uppercase tracking-widest">Step {topic.sequenceNumber}</span>
+                  {isLocked ? (
+                    <span className="flex items-center text-xs font-bold text-foreground/40 bg-cream/30 px-3 py-1 rounded-full"><Lock className="w-3 h-3 mr-1"/> Locked</span>
+                  ) : testPassed ? (
+                    <span className="flex items-center text-xs font-bold text-green bg-green/10 px-3 py-1 rounded-full"><CheckCircle2 className="w-3 h-3 mr-1"/> Passed</span>
+                  ) : moduleStatus[topicId] === "coding_passed" ? (
+                    <span className="flex items-center text-xs font-bold text-blue-600 bg-blue-100 px-3 py-1 rounded-full">Coding Passed</span>
+                  ) : moduleStatus[topicId] === "mcq_passed" ? (
+                    <span className="flex items-center text-xs font-bold text-yellow-600 bg-yellow-100 px-3 py-1 rounded-full">MCQ Passed</span>
+                  ) : studyStarted ? (
+                    <span className="flex items-center text-xs font-bold text-red bg-red/10 px-3 py-1 rounded-full">Study Started</span>
+                  ) : null}
                 </div>
-                {section.expanded ? <ChevronDown className="w-5 h-5 text-foreground/50" /> : <ChevronRight className="w-5 h-5 text-foreground/50" />}
-              </button>
-
-              {section.expanded && (
-                <div className="bg-white pb-3 pt-1 border-t border-cream/50">
-                  {section.lessons.map((lesson) => {
-                      const isActivityActive = activeLesson?.id === lesson.id;
-                      return (
-                      <button
-                        key={lesson.id}
-                        onClick={() =>
-                          lesson.status !== "locked" && setActiveLesson(lesson)
-                        }
-                        disabled={lesson.status === "locked"}
-                        className={`w-full flex items-center px-6 py-3.5 space-x-4 text-left transition-colors relative ${
-                          isActivityActive ? "bg-cream/50" : "hover:bg-cream/20"
-                        } ${
-                          lesson.status === "locked"
-                            ? "opacity-50 cursor-not-allowed"
-                            : ""
-                        }`}
-                      >
-                        {isActivityActive && <div className="absolute left-0 top-0 h-full w-1 bg-red rounded-r-md"></div>}
-                        <div className="flex-shrink-0 bg-white shadow-xs p-1.5 rounded-lg border border-cream/50">
-                            {iconFor(lesson)}
-                        </div>
-                        <div className="flex-1">
-                          <p className={`font-medium text-sm ${isActivityActive ? "text-red font-bold" : "text-foreground/70"}`}>{lesson.title}</p>
-                        </div>
-                      </button>
-                    )
-                  })}
-
-                  {/* Assessment Stage */}
-                  {isSectionCompleted(section) && !moduleStatus[section.id] && (
-                    <div className="px-5 mt-4 mb-3">
-                      <button
-                        onClick={() => navigate(`/assessment?module=${section.id}&domain=${domain}&level=${level}`)}
-                        className="w-full py-3 bg-orange-500 text-white font-bold rounded-xl shadow-md hover:bg-orange-600 transition-all hover:-translate-y-0.5 text-sm uppercase tracking-wide"
-                      >
-                        Take MCQ Assessment
-                      </button>
-                    </div>
-                  )}
-
-                  {isSectionCompleted(section) && moduleStatus[section.id] === "mcq_passed" && (
-                    <div className="px-5 mt-4 mb-3">
-                      <button
-                        onClick={() => navigate(`/coding-assessment?module=${section.id}&domain=${domain}&level=${level}`)}
-                        className="w-full py-3 bg-red text-white font-bold rounded-xl shadow-md hover:bg-red/90 transition-all hover:-translate-y-0.5 text-sm uppercase tracking-wide flex items-center justify-center gap-2"
-                      >
-                        <Code size={16} /> Take Coding Test
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Status Badges */}
-                  {moduleStatus[section.id] === "mcq_passed" && (
-                    <div className="mx-5 mb-3 mt-4 py-2 px-4 bg-yellow/10 border border-yellow/20 text-yellow-700 font-bold uppercase tracking-wider rounded-xl text-[10px] text-center flex items-center justify-center gap-2">
-                       <CheckCircle2 className="w-3 h-3" /> MCQ Passed · Coding Pending
-                    </div>
-                  )}
-
-                  {/* Passed Badge */}
-                  {moduleStatus[section.id] === "completed" && (
-                    <div className="mx-5 mb-3 mt-4 py-2 px-4 bg-green/10 border border-green/20 text-green font-bold uppercase tracking-wider rounded-xl text-xs text-center flex items-center justify-center gap-2">
-                       <CheckCircle2 className="w-4 h-4" /> Module test passed
-                    </div>
-                  )}
-                </div>
-              )}
+                <h3 className={`text-xl font-bold mb-2 ${isLocked ? "text-foreground/60" : "text-foreground"}`}>{topic.title}</h3>
+                {topic.description && (
+                  <p className="text-foreground/60 text-sm font-medium mb-6 line-clamp-3">{topic.description}</p>
+                )}
+              </div>
+              
+              <div className="space-y-3 mt-4">
+                {isLocked ? (
+                  <div className="text-center py-3 text-sm font-semibold text-foreground/40 border-2 border-dashed border-cream/50 rounded-xl">
+                    Pass previous test to unlock
+                  </div>
+                ) : testPassed ? (
+                  <button 
+                    onClick={() => handleStudyWithAI(topic)}
+                    className="w-full py-3 bg-cream text-foreground font-bold rounded-xl hover:bg-cream/70 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Bot size={18} /> Review with AI
+                  </button>
+                ) : moduleStatus[topicId] === "coding_passed" ? (
+                  <>
+                    <button 
+                      onClick={() => setProjectModalOpen(topic)}
+                      className="w-full py-3 bg-red text-white font-bold rounded-xl hover:bg-red/90 transition-all shadow-sm flex items-center justify-center gap-2"
+                    >
+                      <Code size={18} /> Submit Project
+                    </button>
+                    <button 
+                      onClick={() => handleStudyWithAI(topic)}
+                      className="w-full py-3 bg-cream text-foreground font-bold rounded-xl hover:bg-cream/70 transition-all flex items-center justify-center gap-2"
+                    >
+                      <Bot size={18} /> Review with AI
+                    </button>
+                  </>
+                ) : moduleStatus[topicId] === "mcq_passed" ? (
+                  <>
+                    <button 
+                      onClick={() => navigate(`/coding-assessment?module=${topic.sequenceNumber}&domain=${domain}&level=${level}`)}
+                      className="w-full py-3 bg-red text-white font-bold rounded-xl hover:bg-red/90 transition-all shadow-sm flex items-center justify-center gap-2"
+                    >
+                      <Code size={18} /> Take Coding Test
+                    </button>
+                    <button 
+                      onClick={() => handleStudyWithAI(topic)}
+                      className="w-full py-3 bg-cream text-foreground font-bold rounded-xl hover:bg-cream/70 transition-all flex items-center justify-center gap-2"
+                    >
+                      <Bot size={18} /> {studyStarted ? "Continue with AI" : "Study with AI"}
+                    </button>
+                    <button 
+                      onClick={() => setProjectModalOpen(topic)}
+                      className="w-full py-3 bg-white text-foreground border-2 border-cream font-bold rounded-xl hover:bg-cream/50 transition-all flex items-center justify-center gap-2"
+                    >
+                      <Code size={18} /> Submit Project
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button 
+                      onClick={() => handleStudyWithAI(topic)}
+                      className="w-full py-3 bg-red text-white font-bold rounded-xl hover:bg-red/90 transition-all shadow-sm flex items-center justify-center gap-2"
+                    >
+                      <Bot size={18} /> {studyStarted ? "Continue with AI" : "Study with AI"}
+                    </button>
+                    <button 
+                      onClick={() => handleTakeTest(topic)}
+                      className="w-full py-3 bg-white text-red border-2 border-red font-bold rounded-xl hover:bg-red/5 transition-all shadow-sm flex items-center justify-center gap-2"
+                    >
+                      <ShieldCheck size={18} /> Take Test
+                    </button>
+                    <button 
+                      onClick={() => setProjectModalOpen(topic)}
+                      className="w-full py-3 bg-white text-foreground border-2 border-cream font-bold rounded-xl hover:bg-cream/50 transition-all flex items-center justify-center gap-2"
+                    >
+                      <Code size={18} /> Submit Project
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           );
         })}
-
-        {allModulesCompleted && (
-          <button
-            onClick={() =>
-              navigate(
-                `/assessment?final=true&domain=${domain}&level=${level}`
-              )
-            }
-            className="w-full mt-8 py-4 bg-red text-white font-black uppercase tracking-widest rounded-2xl shadow-lg hover:shadow-xl hover:bg-red/90 transition-all transform hover:-translate-y-1"
-          >
-            🏆 Take Final Test
-          </button>
-        )}
-
-        <button
-          className="hidden"
-          id="refresh-module-status"
-          onClick={refreshModuleStatus}
-        />
       </div>
+
+      {projectModalOpen && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl border border-cream">
+            <h2 className="text-2xl font-bold text-foreground mb-2">Submit Project</h2>
+            <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-6">
+               <h4 className="text-xs font-black text-blue-600 uppercase tracking-widest mb-1">Project Task</h4>
+               <p className="text-sm font-medium text-blue-900">{projectModalOpen.projectTask || "Build a small project to demonstrate what you've learned in this module."}</p>
+            </div>
+            <p className="text-foreground/60 text-sm mb-4 font-medium">Paste your GitHub repository link below to submit your project for this module.</p>
+            <textarea 
+              value={projectLink}
+              onChange={(e) => setProjectLink(e.target.value)}
+              className="w-full bg-cream/30 border-2 border-cream rounded-xl p-4 text-foreground placeholder:text-foreground/40 font-medium focus:outline-none focus:border-red transition-colors mb-6 resize-none"
+              placeholder="https://github.com/yourusername/project"
+              rows={3}
+            />
+            <div className="flex gap-4">
+              <button 
+                onClick={() => setProjectModalOpen(false)}
+                className="flex-1 py-3 bg-cream/50 text-foreground font-bold rounded-xl hover:bg-cream transition-all"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => submitProject(String(projectModalOpen.sequenceNumber))}
+                className="flex-1 py-3 bg-red text-white font-bold rounded-xl shadow-md hover:bg-red/90 transition-all"
+              >
+                Submit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

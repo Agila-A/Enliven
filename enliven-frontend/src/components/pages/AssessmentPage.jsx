@@ -29,6 +29,7 @@ import {
   Clock, ShieldCheck, Camera, ChevronRight,
   RotateCcw, AlertTriangle, CheckCircle2,
   XCircle, Eye, Users, MonitorOff, Lock,
+  BookOpen, Target
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -50,12 +51,13 @@ export default function AssessmentPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const p        = new URLSearchParams(location.search);
-  const moduleId = p.get("module");
-  const isFinal  = p.get("final") === "true";
-  const domain   = p.get("domain");
-  const level    = p.get("level");
-  const courseId = `${domain}-${level}`;
+  const p           = new URLSearchParams(location.search);
+  const moduleId    = p.get("module");
+  const moduleTitle = p.get("moduleTitle") || `Module ${moduleId}`;
+  const isFinal     = p.get("final") === "true";
+  const domain      = p.get("domain");
+  const level       = p.get("level");
+  const courseId    = `${domain}-${level}`;
 
   /* ── Phases ──────────────────────────────────────────────── */
   const [phase,    setPhase]    = useState("permission"); // permission|loading|ready|taking|submitted
@@ -80,6 +82,12 @@ export default function AssessmentPage() {
   const [saving,      setSaving]      = useState(false);
   const [earnedBadge, setEarnedBadge] = useState(null);
   const [showPopup,   setShowPopup]   = useState(false);
+  const [attemptId,   setAttemptId]   = useState(null);
+
+  // Remedial state
+  const [remedialStatus, setRemedialStatus] = useState("pending");
+  const [remedialPlan,   setRemedialPlan]   = useState(null);
+  const [pollCount,      setPollCount]      = useState(0);
 
   /* ── Refs ── */
   // FIX 1: Single persistent video ref — never conditionally rendered
@@ -90,6 +98,43 @@ export default function AssessmentPage() {
   const bannerTimer   = useRef(null);
   const startedAt     = useRef(null);
   const submittingRef = useRef(false);
+
+  // Remedial polling
+  useEffect(() => {
+    if (!result || result.score >= 60 || !attemptId) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res   = await fetch(
+          `${import.meta.env.VITE_API_URL}/api/remedial/${attemptId}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const data = await res.json();
+
+        if (data.status === "ready" && data.plan) {
+          setRemedialPlan(data.plan);
+          setRemedialStatus("ready");
+          clearInterval(interval);
+        } else if (data.status === "failed") {
+          setRemedialStatus("failed");
+          clearInterval(interval);
+        }
+
+        setPollCount(c => {
+          if (c + 1 >= 10) {
+            clearInterval(interval);
+            setRemedialStatus("timeout");
+          }
+          return c + 1;
+        });
+      } catch (err) {
+        // Keep polling
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [attemptId, result]);
 
   // Hard violation counters (what gets saved to DB)
   const vRef = useRef({
@@ -390,7 +435,7 @@ export default function AssessmentPage() {
 
     // Save to ProctorAttempt (analytics + Study Buddy context)
     try {
-      await fetch(`${import.meta.env.VITE_API_URL}/api/proctor/attempt`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/proctor/attempt`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
@@ -400,6 +445,10 @@ export default function AssessmentPage() {
           startedAt: startedAt.current, endedAt: new Date(),
         }),
       });
+      const data = await res.json();
+      if (data.success) {
+        setAttemptId(data.attemptId);
+      }
     } catch (err) {
       console.error("saveAttempt failed:", err);
     }
@@ -453,6 +502,17 @@ export default function AssessmentPage() {
   const answeredCount = selectedAnswers.filter(a => a !== null).length;
   const examProgress  = questions.length ? (answeredCount / questions.length) * 100 : 0;
   const isUrgent      = timeLeft > 0 && timeLeft < 60;
+
+  function calcIntegrity(v = {}) {
+    let s = 100;
+    s -= Math.min((v.tabSwitches     || 0) * 10, 30);
+    s -= Math.min((v.faceNotDetected || 0) *  5, 20);
+    s -= Math.min((v.multipleFaces   || 0) * 10, 20);
+    s -= Math.min((v.lookingAway     || 0) *  3, 15);
+    s -= Math.min((v.expressionAlert || 0) *  3, 10);
+    if (v.noCamera) s -= 20;
+    return Math.max(0, s);
+  }
 
   /* ══════════════════════════════════════════════════════════
      RENDER
@@ -595,97 +655,182 @@ export default function AssessmentPage() {
   /* ── SUBMITTED ── */
   if (phase === "submitted" && result) {
     const { score, passed, flagged, correct, total, violations: v } = result;
+    const integrityScore = calcIntegrity(v);
+    const violationSummary = `${v.tabSwitches || 0} tab switches, ${v.faceNotDetected || 0} face detection alerts`;
+
+    if (score >= 60) {
+      return (
+        <div className="min-h-screen bg-cream/20 flex items-center justify-center p-6 font-sans">
+          <div className="max-w-lg w-full bg-white border border-cream rounded-[2.5rem] p-10 text-center shadow-soft">
+            <div className="w-20 h-20 bg-green/10 rounded-full flex items-center justify-center mx-auto mb-6">
+              <span className="text-4xl">🎉</span>
+            </div>
+            <h1 className="text-3xl font-bold text-green-700 mb-2">You Passed!</h1>
+            <p className="text-foreground/60 text-lg mb-6 tracking-wide">
+              You scored <span className="font-bold text-2xl text-green-600">{score}%</span> on {moduleTitle}
+            </p>
+            <div className="bg-cream/30 rounded-xl p-5 mb-8 text-left border border-cream">
+              <p className="text-xs font-bold text-foreground/40 uppercase tracking-widest mb-1">Proctoring integrity</p>
+              <p className="text-2xl font-black text-foreground">{integrityScore}/100</p>
+              <p className="text-xs text-foreground/50 font-medium mt-1">{violationSummary}</p>
+            </div>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => isFinal ? navigate("/dashboard") : navigate(`/coding-assessment?module=${moduleId}&domain=${domain}&level=${level}`)}
+                className="w-full py-4 bg-green-600 text-white font-bold rounded-xl shadow-lg hover:bg-green-700 transition"
+              >
+                {isFinal ? "Finish Course" : "Continue to Next Module →"}
+              </button>
+              <button
+                onClick={() => navigate("/analytics")}
+                className="w-full py-3 border-2 border-cream rounded-xl font-bold text-foreground/50 hover:bg-cream/50 transition text-sm"
+              >
+                View Detailed Analytics
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // FAILED state — score < 60
     return (
       <div className="min-h-screen bg-cream/20 font-sans p-6 overflow-hidden relative flex flex-col items-center py-16">
-        {showPopup && earnedBadge && (
-          <BadgePopup badge={earnedBadge}
-            onClose={() => setShowPopup(false)}
-            onCollect={() => { setShowPopup(false); navigate("/profile"); }}
-          />
-        )}
-        
-        {/* Background Blobs */}
-        <div className={`absolute top-[0%] left-[10%] w-[30%] h-[30%] rounded-full blur-[100px] pointer-events-none ${passed ? "bg-green/10" : "bg-red/10"}`}></div>
-
-        <div className="max-w-3xl w-full mx-auto space-y-6 relative z-10">
-          {/* Score card */}
-          <div className="bg-white border border-cream rounded-[2.5rem] p-10 text-center shadow-soft">
-            <div className={`w-28 h-28 rounded-full flex items-center justify-center mx-auto shadow-md mb-6 ${passed ? "bg-green" : "bg-red"}`}>
-              {passed
-                ? <CheckCircle2 className="w-14 h-14 text-white" />
-                : <XCircle      className="w-14 h-14 text-white" />}
+        <div className="absolute top-[0%] left-[10%] w-[30%] h-[30%] bg-red/10 rounded-full blur-[100px] pointer-events-none"></div>
+        <div className="max-w-2xl w-full mx-auto space-y-6 relative z-10">
+          <div className="bg-white border border-cream rounded-[2.5rem] p-10 text-center shadow-soft mb-6">
+            <div className="w-20 h-20 bg-red/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <span className="text-4xl">📊</span>
             </div>
-            <div>
-              <h1 className="text-4xl font-bold text-foreground mb-2">
-                {passed ? (isFinal ? "Course Complete! 🎉" : "Test Passed! ⭐") : "Test Failed"}
-              </h1>
-              <p className="text-foreground/60 font-medium text-lg">
-                {passed
-                  ? isFinal ? "You've mastered this course!" : "Next module is now unlocked."
-                  : "You need 60% to pass. Review the module and try again."}
+            <h1 className="text-2xl font-bold text-red-700 mb-1">Not quite there yet</h1>
+            <p className="text-foreground/60 font-medium">
+              You scored <span className="font-bold text-xl text-red-600">{score}%</span> on {moduleTitle}
+            </p>
+            <p className="text-sm text-foreground/40 font-bold mt-1 uppercase tracking-widest">You need 60% to pass</p>
+          </div>
+
+          {remedialStatus === "pending" && (
+            <div className="bg-blue-50 border border-blue-200 rounded-3xl p-8 text-center shadow-sm">
+              <div className="flex items-center justify-center gap-4 mb-4">
+                <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                <p className="text-blue-700 font-bold text-lg">AI Remedial Tutor is analysing your answers…</p>
+              </div>
+              <p className="text-blue-600 font-medium">
+                Identifying exactly what went wrong and creating your personalised fix plan.
+                This takes about 10–15 seconds.
               </p>
             </div>
-            <p className={`text-[6rem] font-black my-4 leading-none tracking-tighter ${passed ? "text-green" : "text-red"}`}>
-              {score}%
-            </p>
-            <p className="text-foreground/50 font-bold uppercase tracking-widest text-sm">{correct} / {total} correct</p>
-          </div>
+          )}
 
-          {/* Proctoring report */}
-          <div className="bg-white border border-cream rounded-[2rem] p-8 shadow-sm">
-            <h2 className="font-bold text-xl text-foreground flex items-center gap-3 mb-6">
-              <ShieldCheck className="w-6 h-6 text-foreground/40" />
-              Proctoring Report
-            </h2>
-            {flagged && (
-              <div className="flex items-center gap-3 text-sm px-4 py-3 rounded-xl bg-red/10 text-red font-bold mb-6">
-                <AlertTriangle className="w-6 h-6 shrink-0" />
-                This attempt has been flagged for review due to policy violations.
+          {remedialStatus === "ready" && remedialPlan && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+              <div className="bg-amber-50 border border-amber-200 rounded-3xl p-6 shadow-sm">
+                <h3 className="font-bold text-amber-900 mb-2 flex items-center gap-2">
+                   <span className="text-xl">💡</span> What happened
+                </h3>
+                <p className="text-amber-800 leading-relaxed font-medium">{remedialPlan.summary}</p>
               </div>
-            )}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-              {[
-                { label: "Tab Switches",      val: v.tabSwitches,     icon: "🪟" },
-                { label: "Face Not Found", val: v.faceNotDetected, icon: "👤" },
-                { label: "Multiple Faces",    val: v.multipleFaces,   icon: "👥" },
-                { label: "Looking Away",      val: v.lookingAway,     icon: "👀" },
-                { label: "Expr. Alerts", val: v.expressionAlert, icon: "😟" },
-              ].map(({ label, val, icon }) => (
-                <div key={label} className="bg-cream/30 rounded-2xl p-4 text-center border border-cream">
-                  <p className="text-2xl mb-2 opacity-80">{icon}</p>
-                  <p className={`text-2xl font-black ${val > 0 ? "text-red" : "text-foreground"}`}>{val}</p>
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-foreground/50 mt-1">{label}</p>
+
+              {remedialPlan.weakTopics?.length > 0 && (
+                <div>
+                  <h3 className="font-bold text-foreground mb-4 flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-red" /> Topics to focus on
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {remedialPlan.weakTopics.map((t, i) => (
+                      <div key={i} className="bg-white border border-red/10 rounded-2xl p-4 shadow-xs">
+                        <p className="font-bold text-red-800 text-sm mb-1">{t.topic}</p>
+                        <p className="text-xs text-foreground/60 font-medium leading-relaxed">{t.description}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
+              )}
+
+              {remedialPlan.lessonPlan?.length > 0 && (
+                <div>
+                  <h3 className="font-bold text-foreground mb-4 flex items-center gap-2">
+                    <BookOpen className="w-5 h-5 text-red" /> Your 3-step fix plan
+                  </h3>
+                  <div className="space-y-3">
+                    {remedialPlan.lessonPlan.map((step, i) => (
+                      <div key={i} className="flex gap-4 p-5 bg-white border border-cream rounded-3xl shadow-xs hover:border-red/20 transition-colors">
+                        <div className="w-10 h-10 bg-red text-white rounded-full flex items-center justify-center font-black text-sm shrink-0 shadow-sm">
+                          {step.step}
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-bold text-foreground mb-1">{step.title}</p>
+                          <p className="text-xs text-foreground/60 font-medium leading-relaxed">{step.explanation}</p>
+                          <button
+                            onClick={() => navigate(
+                              `/study-buddy?moduleTitle=${encodeURIComponent(moduleTitle)}&domain=${domain}&level=${level}&prompt=${encodeURIComponent(step.studyPrompt)}`
+                            )}
+                            className="mt-3 text-sm text-red hover:underline font-bold flex items-center gap-1"
+                          >
+                            → Study this with AI
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {remedialPlan.practicePrompts?.length > 0 && (
+                <div>
+                  <h3 className="font-bold text-foreground mb-4 flex items-center gap-2">
+                    <Target className="w-5 h-5 text-red" /> Jump straight into practice
+                  </h3>
+                  <div className="grid gap-2">
+                    {remedialPlan.practicePrompts.map((prompt, i) => (
+                      <button
+                        key={i}
+                        onClick={() => navigate(
+                          `/study-buddy?moduleTitle=${encodeURIComponent(moduleTitle)}&domain=${domain}&level=${level}&prompt=${encodeURIComponent(prompt)}`
+                        )}
+                        className="text-left px-5 py-4 bg-red/5 border border-red/10 rounded-2xl text-sm text-red hover:bg-red/10 transition-all font-bold flex items-center justify-between group"
+                      >
+                        <span>💬 {prompt}</span>
+                        <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
+          )}
 
-          {/* Actions */}
-          <div className="flex flex-col sm:flex-row gap-4 mt-8">
-            <button className="flex-1 py-4 font-bold rounded-xl border-2 border-foreground/20 text-foreground/70 hover:bg-cream/50 transition-all flex items-center justify-center"
-              onClick={() => {
-                vRef.current = { tabSwitches:0, faceNotDetected:0, multipleFaces:0, lookingAway:0, expressionAlert:0, noCamera:false };
-                warnRef.current = { faceNotDetected:0, lookingAway:0, multipleFaces:0 };
-                submittingRef.current = false;
-                setSelectedAnswers(Array(questions.length).fill(null));
-                setCurrentQ(0); setViolationCount(0); setResult(null); setPhase("permission");
-              }}>
-              <RotateCcw className="mr-3 w-5 h-5" /> Retake Test
+          {(remedialStatus === "timeout" || remedialStatus === "failed") && (
+            <div className="bg-cream/50 border border-cream rounded-2xl p-6 text-center">
+              <p className="text-foreground/60 font-medium text-sm">
+                Remedial plan is taking longer than expected. Open Study Buddy — it already knows your weak areas.
+              </p>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-3 pt-6 border-t border-cream">
+            <button
+              onClick={() => navigate(
+                `/study-buddy?moduleTitle=${encodeURIComponent(moduleTitle)}&domain=${domain}&level=${level}`
+              )}
+              className="w-full py-4 bg-red text-white font-bold rounded-2xl shadow-lg hover:bg-red/90 transition-all transform hover:-translate-y-0.5"
+            >
+              Open Study Buddy — I'm ready to fix this
             </button>
-
-            {passed && (
-              isFinal ? (
-                <button className="flex-1 py-4 font-bold text-white bg-red rounded-xl shadow-md hover:shadow-lg hover:bg-red/90 transition-all transform hover:-translate-y-0.5 flex items-center justify-center"
-                  onClick={() => earnedBadge ? setShowPopup(true) : navigate("/dashboard")}>
-                  🎖️ {earnedBadge ? "View Badge" : "Go to Dashboard"}
-                </button>
-              ) : (
-                <button className="flex-1 py-4 font-bold text-white bg-red rounded-xl shadow-md hover:shadow-lg hover:bg-red/90 transition-all transform hover:-translate-y-0.5 flex items-center justify-center"
-                  onClick={() => navigate(`/coding-assessment?module=${moduleId}&domain=${domain}&level=${level}`)}>
-                  Next: Take Coding Test <ChevronRight className="ml-2 w-5 h-5"/>
-                </button>
-              )
-            )}
+            <div className="flex gap-4">
+              <button
+                onClick={() => window.location.reload()}
+                className="flex-1 py-4 border-2 border-red text-red font-bold rounded-2xl hover:bg-red/5 transition-all text-sm"
+              >
+                Retake Test Now
+              </button>
+              <button
+                onClick={() => navigate(`/courses/${domain}/${level}`)}
+                className="flex-1 py-4 border-2 border-cream text-foreground/50 font-bold rounded-2xl hover:bg-cream/50 transition-all text-sm"
+              >
+                Back to Course
+              </button>
+            </div>
           </div>
         </div>
       </div>

@@ -1,14 +1,7 @@
 // controllers/dashboardController.js
-import fs from "fs/promises";
-import path from "path";
-import { fileURLToPath } from "url";
 import User     from "../models/User.js";
 import Progress from "../models/Progress.js";
 import Roadmap  from "../models/Roadmap.js";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname  = path.dirname(__filename);
-const baseDir    = path.resolve(__dirname, "..", "data", "course-content");
 
 /* ─── SLUG HELPERS (must match courseController exactly) ────────── */
 const toSlug     = (s = "") => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -16,60 +9,7 @@ const toLevel    = (s = "") => s.toLowerCase().replace(/[^a-z]/g, "");
 const cleanLevel = (s = "") => toLevel(s.replace(/[^a-zA-Z\s]/g, "").trim());
 const norm       = (s = "") => s.toLowerCase().trim();
 
-async function loadContent(domain, level) {
-  const filePath = path.join(baseDir, toSlug(domain), `${level}.json`);
-  const raw      = await fs.readFile(filePath, "utf-8");
-  return JSON.parse(raw);
-}
 
-function smartMatch(topicTitle, map) {
-  if (!topicTitle) return null;
-  const lower = norm(topicTitle);
-  if (map.has(lower)) return map.get(lower);
-  for (const [key, value] of map.entries()) {
-    if (key.includes(lower) || lower.includes(key)) return value;
-  }
-  const words = lower.split(/\s+/).filter((w) => w.length > 1);
-  for (const [key, value] of map.entries()) {
-    const overlap = words.filter((w) => key.split(/\s+/).includes(w));
-    if (overlap.length >= 1) return value;
-  }
-  return null;
-}
-
-/* ─── Get real total video count from course JSON ──────────────── */
-async function getRealVideoCounts(roadmap, domainSlug, levelSlug) {
-  try {
-    const content  = await loadContent(domainSlug, levelSlug);
-    const steps    = Array.isArray(content.steps) ? content.steps : [];
-    const stepMap  = new Map(steps.map((s) => [norm(s.title || ""), s]));
-    const topicCounts = {};
-    let   totalVideos = 0;
-
-    for (const topic of roadmap.topics) {
-      const matched = smartMatch(topic.title, stepMap);
-      const count   = matched?.links?.length || 0;
-      topicCounts[String(topic.sequenceNumber)] = count;
-      totalVideos += count;
-    }
-    return { totalVideos, topicCounts };
-  } catch {
-    return { totalVideos: 0, topicCounts: {} };
-  }
-}
-
-/* ─── Count completed videos from a Progress doc ───────────────── */
-function countCompletedLessons(progressDoc) {
-  let completed = 0;
-  if (progressDoc?.progress?.length) {
-    progressDoc.progress.forEach((topic) => {
-      if (topic.videoProgress && typeof topic.videoProgress === "object") {
-        completed += Object.values(topic.videoProgress).filter(Boolean).length;
-      }
-    });
-  }
-  return completed;
-}
 
 /* ─── STREAK HELPER ───────────────────────────────────────────── */
 function todayUTC() {
@@ -135,22 +75,25 @@ function getEffectiveEnrollments(user) {
 async function buildCourseCard(userId, enrollment) {
   const { courseId, domain, skillLevel, enrolledAt, lastAccessedAt } = enrollment;
 
-  const domainSlug = toSlug(domain);
-  const levelSlug  = cleanLevel(skillLevel);
-
   const [roadmap, progressDoc] = await Promise.all([
     Roadmap.findOne({ userId, courseId }).lean(),
     Progress.findOne({ userId, courseId }).lean(),
   ]);
 
-  const { totalVideos } = roadmap
-    ? await getRealVideoCounts(roadmap, domainSlug, levelSlug)
-    : { totalVideos: 0 };
+  const totalModules = roadmap?.topics?.length || 0;
 
-  const completedLessons = countCompletedLessons(progressDoc);
-  const totalLessons     = totalVideos;
-  const progressPercent  = totalLessons > 0
-    ? Math.round((completedLessons / totalLessons) * 100)
+  let passedModules = 0;
+  if (progressDoc && progressDoc.moduleStatus) {
+    const statusObj = progressDoc.moduleStatus;
+    if (statusObj instanceof Map) {
+      passedModules = Array.from(statusObj.values()).filter(v => v === "completed").length;
+    } else {
+      passedModules = Object.values(statusObj).filter(v => v === "completed").length;
+    }
+  }
+
+  const progressPercent = totalModules > 0
+    ? Math.round((passedModules / totalModules) * 100)
     : 0;
 
   return {
@@ -160,9 +103,8 @@ async function buildCourseCard(userId, enrollment) {
     enrolledAt,
     lastAccessedAt,
     progress:         progressPercent,
-    completedLessons,
-    totalLessons,
-    totalModules:     roadmap?.topics?.length || 0,
+    passedModules,
+    totalModules,
     completed:        progressDoc?.finalCompleted === true,
   };
 }

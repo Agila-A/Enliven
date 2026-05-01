@@ -9,7 +9,6 @@ import cookieParser from "cookie-parser";
 import authRoutes        from "./routes/authRoutes.js";
 import userRoutes        from "./routes/userRoutes.js";
 import roadmapRoutes     from "./routes/roadmapRoutes.js";
-import courseRoutes      from "./routes/courseRoutes.js";
 import notesRoutes       from "./routes/notesRoutes.js";
 import profileRoutes     from "./routes/profileRoutes.js";
 import dashboardRoutes   from "./routes/dashboardRoutes.js";
@@ -19,6 +18,7 @@ import proctorRoutes     from "./routes/proctorRoutes.js";
 import learningPathRoutes from "./routes/learningPathRoutes.js";
 import analyticsRoutes   from "./routes/analyticsRoutes.js";
 import migrationRoutes   from "./routes/migrationRoutes.js";
+import remedialRoutes    from "./routes/remedialRoutes.js";
 
 const app = express();
 
@@ -35,7 +35,6 @@ app.use(
 app.use("/api/auth",          authRoutes);
 app.use("/api/user",          userRoutes);
 app.use("/api/roadmap",       roadmapRoutes);
-app.use("/api/courses",       courseRoutes);
 app.use("/api/notes",         notesRoutes);
 app.use("/api/profile",       profileRoutes);
 app.use("/api/dashboard",     dashboardRoutes);
@@ -45,6 +44,7 @@ app.use("/api/proctor",       proctorRoutes);
 app.use("/api/learning-path", learningPathRoutes);
 app.use("/api/analytics",     analyticsRoutes);
 app.use("/api/migration",     migrationRoutes);
+app.use("/api/remedial",      remedialRoutes);
 
 mongoose
   .connect(process.env.MONGO_URI)

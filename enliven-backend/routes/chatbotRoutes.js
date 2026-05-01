@@ -1,10 +1,13 @@
 // routes/chatbotRoutes.js
 import express from "express";
 import { requireAuth } from "../middleware/authMiddleware.js";
-import { updateContext, getChatHistory, getContext } from "../controllers/chatbotContextController.js";
+import { updateContext, getChatHistory, getContext, syncEnrolledCourses } from "../controllers/chatbotContextController.js";
 import { sendChatMessage } from "../controllers/chatbotMessageController.js";
 
 const router = express.Router();
+
+// Sync enrolled courses
+router.post("/context/sync-courses", requireAuth, syncEnrolledCourses);
 
 // Update user context (module started, video completed, roadmap created, etc.)
 router.post("/context/update", requireAuth, updateContext);

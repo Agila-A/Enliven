@@ -15,6 +15,49 @@ function createGroqClient() {
 */
 const MAX_HISTORY = 20;
 
+function detectIntent(message) {
+  const m = message.toLowerCase();
+  if (/flashcard|flash card|card(s)?/.test(m))            return "flashcards";
+  if (/diagram|flowchart|chart|visual|draw|sketch/.test(m)) return "diagram";
+  if (/quiz|test me|question(s)?|mcq/.test(m))            return "quiz";
+  if (/step\.by\.step|steps|walk.?through|how to/.test(m)) return "steps";
+  if (/example(s)?|show me|code example/.test(m))         return "example";
+  if (/explain|what is|what are|tell me|describe/.test(m)) return "explain";
+  return "chat";
+}
+
+function getIntentInstruction(intent) {
+  switch (intent) {
+    case "flashcards":
+      return `The student wants flashcards. Respond ONLY with a valid JSON object in this exact format, nothing else before or after it:
+{"type":"flashcards","cards":[{"front":"Question or term","back":"Answer or definition"},{"front":"...","back":"..."}]}
+Generate 5 to 8 flashcards relevant to the current module and question. Make fronts concise, backs explanatory.`;
+
+    case "diagram":
+      return `The student wants a diagram. Respond ONLY with a valid JSON object in this exact format:
+{"type":"diagram","title":"Diagram title","mermaid":"graph TD\\n  A[Start] --> B[Step]\\n  B --> C[End]"}
+Use Mermaid syntax. Choose the most appropriate diagram type: flowchart (graph TD), sequence (sequenceDiagram), or class diagram (classDiagram). Keep it clear and relevant to the concept asked about.`;
+
+    case "quiz":
+      return `The student wants a mini-quiz. Respond ONLY with a valid JSON object in this exact format:
+{"type":"quiz","questions":[{"q":"Question text","options":["A","B","C","D"],"correct":0,"explanation":"Why A is correct"},{"q":"...","options":["..."],"correct":1,"explanation":"..."}]}
+Generate exactly 4 questions. Make them relevant to the current module topic. correctIndex is 0-based.`;
+
+    case "steps":
+      return `The student wants a step-by-step breakdown. Respond with a JSON object:
+{"type":"steps","title":"What you are explaining","steps":[{"number":1,"title":"Step title","content":"Explanation"},{"number":2,"title":"...","content":"..."}]}
+Break it into 4 to 7 clear steps. Each step should be actionable and specific.`;
+
+    case "example":
+      return `The student wants a code example or real-world analogy. Respond with a JSON object:
+{"type":"example","language":"javascript","explanation":"Brief explanation of what this demonstrates","code":"// code here"}
+Match the language to the domain. If non-code domain, use type "analogy" with an "analogy" string field instead of code.`;
+
+    default:
+      return `Respond conversationally as Study Buddy. Use markdown naturally — code blocks for code, bullet points for lists. Keep responses focused and under 200 words unless the student asks for more detail.`;
+  }
+}
+
 /*
   POST /api/chatbot/message
   Body: { message: string, courseId: string }
@@ -47,7 +90,8 @@ export const sendChatMessage = async (req, res) => {
             $each: [{ sender: "user", text: message }],
             $slice: -100
           }
-        }
+        },
+        $set: { lastUpdated: new Date() }
       }
     );
 
@@ -56,11 +100,19 @@ export const sendChatMessage = async (req, res) => {
     // to get any background context updates that just finished.
     let freshCtx = await ChatbotContext.findOne({ userId, courseId });
 
+    const intent = detectIntent(message);
+    const intentInstruction = getIntentInstruction(intent);
+
     const contextSystemMessage = {
       role: "system",
       content:
-        "LIVE USER CONTEXT (use this data exclusively — do not invent or assume anything not present here):\n" +
+        "LIVE USER CONTEXT (authoritative — do not invent data not present here):\n" +
         JSON.stringify(freshCtx.context || {}, null, 2),
+    };
+
+    const intentSystemMessage = {
+      role: "system",
+      content: intentInstruction
     };
 
     // Sliding window — last MAX_HISTORY messages
@@ -75,6 +127,7 @@ export const sendChatMessage = async (req, res) => {
     const groqMessages = [
       { role: "system", content: systemPrompt },
       contextSystemMessage,
+      intentSystemMessage,
       ...history,
       { role: "user", content: message },
     ];
@@ -100,13 +153,14 @@ export const sendChatMessage = async (req, res) => {
             $each: [{ sender: "assistant", text: reply }],
             $slice: -100
           }
-        }
+        },
+        $set: { lastUpdated: new Date() }
       }
     );
 
     // 6) Respond
     // Problem 10: contextUpdated flag
-    return res.json({ success: true, reply, contextUpdated: false });
+    return res.json({ success: true, reply, intent, contextUpdated: false });
 
   } catch (err) {
     console.error("sendChatMessage error:", err);

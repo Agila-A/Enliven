@@ -4,17 +4,8 @@ import mongoose from "mongoose";
 const topicProgressSchema = new mongoose.Schema(
   {
     topicId: { type: String, required: true },
-    videoProgress: {
-      type: Map,
-      of: Boolean,
-      default: {},
-    },
+    studyStarted: { type: Boolean, default: false },
     currentIndex: { type: Number, default: 0 },
-    // FIX: store the real total video count for this topic.
-    // CoursePage knows this when it loads the merged course content,
-    // so it sends it along with every saveProgress call.
-    // Dashboard and LearningPath use this for accurate % calculation.
-    videoCount: { type: Number, default: 0 },
   },
   { _id: false }
 );

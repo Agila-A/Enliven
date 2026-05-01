@@ -3,6 +3,9 @@ import Groq from "groq-sdk";
 import ProctorAttempt from "../models/ProctorAttempt.js";
 import ChatbotContext from "../models/ChatbotContext.js";
 
+import { computeSnapshot, generateAndStoreReport } from "./analyticsController.js";
+import { generatePlan } from "./remedialController.js";
+
 /* ─── GROQ CLIENT ─────────────────────────────────────────────── */
 function createGroqClient() {
   if (!process.env.GROQ_API_KEY) throw new Error("GROQ_API_KEY missing");
@@ -160,7 +163,7 @@ export async function getModuleQuestions(req, res) {
       return res.status(400).json({ success: false, message: "domain and level are required" });
 
     const topic     = `Module ${moduleId} of ${domain} at ${level} level`;
-    const questions = await generateQuestionsWithGroq({ topic, count: 5 });
+    const questions = await generateQuestionsWithGroq({ topic, count: 10 });
 
     return res.json({ success: true, questions, moduleId, mode: "module" });
   } catch (err) {
@@ -334,6 +337,42 @@ export async function saveAttempt(req, res) {
       violations: attempt.violations,
       summary,
     });
+
+    // Fire analytics and report generation in background — do not await
+    // This must NEVER block or delay the test submission response to the student
+    // Always fire analytics in background
+    Promise.all([
+      computeSnapshot(userId),
+      generateAndStoreReport(userId),
+    ]).catch(err => console.error("Background analytics error:", err.message))
+
+    // Fire Remedial Tutor Agent if student failed — do not await
+    if (!passed) {
+      // Fetch domain and level from the user's roadmap for richer prompts
+      // Do this asynchronously — do not block the response
+      import("../models/Roadmap.js").then(({ default: Roadmap }) => {
+        return Roadmap.findOne({ userId }).lean()
+      }).then(roadmap => {
+        const domain = roadmap?.domain     || ""
+        const level  = roadmap?.skillLevel || ""
+
+        // Fetch module title from roadmap topics
+        const moduleTitle = roadmap?.topics?.find(
+          t => String(t.sequenceNumber) === String(moduleId)
+        )?.title || `Module ${moduleId}`
+
+        return generatePlan(userId, attempt._id, {
+          moduleId,
+          moduleTitle,
+          courseId,
+          score,
+          questions,
+          userAnswers,
+          domain,
+          level,
+        })
+      }).catch(err => console.error("Remedial plan error:", err.message))
+    }
 
     return res.status(201).json({
       success:   true,

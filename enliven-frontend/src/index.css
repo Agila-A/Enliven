@@ -36,10 +36,16 @@
     --warning: #EEBF43; 
     --warning-foreground: #2b1f1c;
 
+    /* Enliven Brand Extended */
+    --enliven-cream: #FDF9F0;
+    --enliven-purple: #6366f1;
+    --enliven-mauve: #8b5cf6;
+    --enliven-soft-yellow: #fefce8;
+
     --border: rgba(0, 0, 0, 0.08);
     --input: rgba(0, 0, 0, 0.05);
     
-    --radius: 1rem;
+    --radius: 1.25rem;
   }
 
   body {

@@ -74,15 +74,17 @@ export const generateRoadmap = async (req, res) => {
     const levelLower = toLevel(skillLevel);  // "beginner"
     const courseId   = `${domainSlug}-${levelLower}`; // "web-development-beginner"
 
-    // ---- Load course titles from JSON ----
-    const allowedTitles = await loadAllowedTitles(domainSlug, levelLower);
-    if (!allowedTitles.length) {
-      return res.status(400).json({ message: "No course content found for domain/level" });
+    // ---- Load course titles from JSON (if exists) ----
+    let allowedTitles = [];
+    try {
+      allowedTitles = await loadAllowedTitles(domainSlug, levelLower);
+    } catch (err) {
+      console.log(`[Roadmap] No static content for ${domainSlug}-${levelLower}. Generating dynamically.`);
     }
 
     // ---- Prompt for Groq ----
     const groq   = getGroqClient();
-    const prompt = `
+    const prompt = allowedTitles.length > 0 ? `
 You're generating a learning roadmap.
 
 Domain: ${domain}
@@ -95,11 +97,29 @@ Task:
 - Pick 5–7 titles from the list that match a ${skillLevel} learner.
 - Order them logically.
 - Add one-sentence descriptions.
+- Add a "projectTask" field (1-2 sentences) describing a small hands-on project for this module.
 - Start numbering from 1 using "sequenceNumber".
 
 Return ONLY valid JSON array:
 [
-  { "title": "<title>", "description": "<sentence>", "sequenceNumber": 1 }
+  { "title": "<title>", "description": "<sentence>", "sequenceNumber": 1, "projectTask": "<project instructions>" }
+]
+`.trim() : `
+You're generating a learning roadmap.
+
+Domain: ${domain}
+Level: ${skillLevel}
+
+Task:
+- Generate 5-7 logical learning modules (titles) for a ${skillLevel} learner in this domain.
+- Order them progressively from fundamentals to more advanced topics.
+- Add one-sentence descriptions.
+- Add a "projectTask" field (1-2 sentences) describing a small hands-on project for this module (e.g. "Create a simple landing page using HTML").
+- Start numbering from 1 using "sequenceNumber".
+
+Return ONLY valid JSON array:
+[
+  { "title": "<title>", "description": "<sentence>", "sequenceNumber": 1, "projectTask": "<project instructions>" }
 ]
 `.trim();
 
@@ -118,21 +138,27 @@ Return ONLY valid JSON array:
 
       topics = rawJson
         .map((step, idx) => {
-          const snapped = snapToAllowed(step.title, allowedTitles);
-          if (!snapped || seen.has(snapped)) return null;
-          seen.add(snapped);
+          const finalTitle = allowedTitles.length > 0 
+            ? snapToAllowed(step.title, allowedTitles) 
+            : step.title?.replace(/[#\*`]/g, "").trim();
+            
+          if (!finalTitle || seen.has(finalTitle)) return null;
+          seen.add(finalTitle);
           return {
-            title:          snapped,
+            title:          finalTitle,
             description:    step.description?.toString() || "",
             sequenceNumber: Number(step.sequenceNumber) || idx + 1,
+            projectTask:    step.projectTask?.toString() || `Build a simple project demonstrating ${finalTitle}.`,
           };
         })
         .filter(Boolean);
 
       if (!topics.length) throw new Error("Groq returned no valid steps");
     } catch (err) {
+      console.log("[Roadmap] Groq generation failed, using fallback.", err.message);
       // ---- FALLBACK ----
-      topics = allowedTitles.slice(0, 6).map((t, i) => ({
+      const fallbacks = allowedTitles.length > 0 ? allowedTitles : ["Introduction", "Core Concepts", "Best Practices", "Advanced Patterns"];
+      topics = fallbacks.slice(0, 6).map((t, i) => ({
         title:          t,
         description:    `Learn ${t} with hands-on practice.`,
         sequenceNumber: i + 1,

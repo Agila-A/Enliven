@@ -13,12 +13,10 @@ import {
   ChevronRight,
 } from "lucide-react";
 
-/* ── Top-level nav items (Courses replaced by dynamic enrollment list) ── */
+/* ── Top-level nav items (after Courses) ── */
 const menuItems = [
-  { id: "dashboard",     label: "Dashboard",    icon: LayoutDashboard },
-  { id: "learning-path", label: "Learning Path", icon: RouteIcon },
   { id: "analytics",     label: "Analytics",     icon: BarChart3 },
-  { id: "studybuddy",    label: "StudyBuddy",    icon: MessageCircle },
+  { id: "studybuddy",    label: "Study Buddy",   icon: MessageCircle },
   { id: "profile",       label: "Profile",       icon: User },
 ];
 
@@ -132,23 +130,18 @@ export default function Sidebar() {
       {/* ── SCROLLABLE NAV ─────────────────────────────────────────── */}
       <nav className="flex-1 p-5 space-y-1 overflow-y-auto">
 
-        {/* Top-level menu items */}
-        {menuItems.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            onClick={() => go(id)}
-            className={`w-full flex items-center space-x-4 px-4 py-3 rounded-xl transition-all duration-200 ${
-              isActive(id)
-                ? "bg-red text-white shadow-md font-semibold"
-                : "text-foreground hover:bg-cream hover:text-red font-medium"
-            }`}
-          >
-            <Icon className={`w-5 h-5 ${isActive(id) ? "text-white" : "text-foreground/70"}`} />
-            <span>{label}</span>
-          </button>
-        ))}
-
-        {/* ── COURSES SECTION ──────────────────────────────────────── */}
+        {/* Dashboard (First item) */}
+        <button
+          onClick={() => go("dashboard")}
+          className={`w-full flex items-center space-x-4 px-4 py-3 rounded-xl transition-all duration-200 ${
+            isActive("dashboard")
+              ? "bg-red text-white shadow-md font-semibold"
+              : "text-foreground hover:bg-cream hover:text-red font-medium"
+          }`}
+        >
+          <LayoutDashboard className={`w-5 h-5 ${isActive("dashboard") ? "text-white" : "text-foreground/70"}`} />
+          <span>Dashboard</span>
+        </button>
         <div className="pt-2">
           {/* Section header — collapsible accordion */}
           <button
@@ -213,6 +206,24 @@ export default function Sidebar() {
 
             </div>
           )}
+        </div>
+
+        {/* Remaining menu items */}
+        <div className="pt-2 space-y-1">
+          {menuItems.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => go(id)}
+              className={`w-full flex items-center space-x-4 px-4 py-3 rounded-xl transition-all duration-200 ${
+                isActive(id)
+                  ? "bg-red text-white shadow-md font-semibold"
+                  : "text-foreground hover:bg-cream hover:text-red font-medium"
+              }`}
+            >
+              <Icon className={`w-5 h-5 ${isActive(id) ? "text-white" : "text-foreground/70"}`} />
+              <span>{label}</span>
+            </button>
+          ))}
         </div>
       </nav>
 
