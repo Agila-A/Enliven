@@ -137,34 +137,43 @@ export async function computeSnapshot(userId) {
   return snapshot
 }
 
-export async function generateAndStoreReport(userId) {
+export async function generateAndStoreReport(userId, courseId = "all") {
   try {
     const snapshot = await AnalyticsSnapshot.findOne({ userId })
     if (!snapshot || !snapshot.overallStats.totalAttempts) return
 
     const groq = createGroqClient()
 
+    let relevantAttempts = snapshot.attemptDetails;
+    let contextTitle = "ALL COURSES";
+    if (courseId !== "all") {
+      relevantAttempts = snapshot.attemptDetails.filter(a => a.courseId === courseId);
+      contextTitle = `COURSE: ${courseId}`;
+    }
+
+    if (relevantAttempts.length === 0) return;
+
+    // Calculate quick stats for the prompt
+    const total = relevantAttempts.length;
+    const passed = relevantAttempts.filter(a => a.passed).length;
+    const avgScore = total ? Math.round(relevantAttempts.reduce((sum, a) => sum + a.score, 0) / total) : 0;
+
     const prompt = `
-You are an expert learning coach analysing a student's assessment performance.
+You are an expert learning coach analysing a student's assessment performance for ${contextTitle}.
 
-OVERALL STATS:
-${JSON.stringify(snapshot.overallStats, null, 2)}
+QUICK STATS:
+Total Attempts: ${total}
+Passed: ${passed}
+Average Score: ${avgScore}%
 
-SCORE TREND:
-${JSON.stringify(snapshot.scoreTrend, null, 2)}
-
-VIOLATIONS:
-${JSON.stringify(snapshot.totalViolations, null, 2)}
-
-RECENT ATTEMPTS (last 5):
-${JSON.stringify(snapshot.attemptDetails.slice(-5), null, 2)}
+RECENT ATTEMPTS (last 5 for this context):
+${JSON.stringify(relevantAttempts.slice(-5), null, 2)}
 
 Write a concise, encouraging, and specific performance report:
 1. Overall performance summary (2-3 sentences)
 2. Strengths observed (1-2 specific points from data)
 3. Areas for improvement (1-2 actionable points)
-4. Proctoring integrity observation (1 sentence, only if notable violations exist)
-5. Motivational closing (1 sentence)
+4. Motivational closing (1 sentence)
 
 Tone: warm, professional, data-driven. Use specific numbers.
 Plain paragraphs only. No bullet points. No markdown headers.
@@ -184,12 +193,27 @@ Plain paragraphs only. No bullet points. No markdown headers.
     const report = completion.choices?.[0]?.message?.content
     if (!report) return
 
-    await AnalyticsSnapshot.findOneAndUpdate(
-      { userId },
-      { $set: { "aiReport.text": report, "aiReport.generatedAt": new Date() } }
-    )
+    if (courseId === "all") {
+      await AnalyticsSnapshot.findOneAndUpdate(
+        { userId },
+        { $set: { "aiReport.text": report, "aiReport.generatedAt": new Date() } }
+      )
+    } else {
+      // Update or push to courseReports
+      const existing = snapshot.courseReports?.find(r => r.courseId === courseId);
+      if (existing) {
+        await AnalyticsSnapshot.findOneAndUpdate(
+          { userId, "courseReports.courseId": courseId },
+          { $set: { "courseReports.$.text": report, "courseReports.$.generatedAt": new Date() } }
+        )
+      } else {
+        await AnalyticsSnapshot.findOneAndUpdate(
+          { userId },
+          { $push: { courseReports: { courseId, text: report, generatedAt: new Date() } } }
+        )
+      }
+    }
   } catch (err) {
-    // Non-fatal — log but never block the test submission flow
     console.error("generateAndStoreReport error:", err.message)
   }
 }
@@ -218,6 +242,7 @@ export const getAnalytics = async (req, res) => {
       totalViolations:  snapshot.totalViolations,
       attemptDetails:   snapshot.attemptDetails,
       aiReport:         snapshot.aiReport,
+      courseReports:    snapshot.courseReports || [],
       computedAt:       snapshot.computedAt,
     })
   } catch (err) {
@@ -228,12 +253,21 @@ export const getAnalytics = async (req, res) => {
 
 export const generateReport = async (req, res) => {
   try {
-    await generateAndStoreReport(req.userId)
+    const courseId = req.query.courseId || "all";
+    await generateAndStoreReport(req.userId, courseId)
     const snapshot = await AnalyticsSnapshot.findOne({ userId: req.userId }).lean()
+    
+    let reportData = null;
+    if (courseId === "all") {
+      reportData = snapshot.aiReport;
+    } else {
+      reportData = snapshot.courseReports?.find(r => r.courseId === courseId);
+    }
+
     return res.json({
       success: true,
-      report:  snapshot?.aiReport?.text || "",
-      generatedAt: snapshot?.aiReport?.generatedAt,
+      report:  reportData?.text || "",
+      generatedAt: reportData?.generatedAt,
     })
   } catch (err) {
     console.error("generateReport error:", err)
