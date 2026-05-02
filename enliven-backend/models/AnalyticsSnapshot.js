@@ -93,11 +93,21 @@ const analyticsSnapshotSchema = new mongoose.Schema({
   // Full attempt details for the table
   attemptDetails: [attemptSummarySchema],
 
-  // Pre-generated AI coaching report
+  // Pre-generated AI coaching report (global)
   aiReport: {
     text:        { type: String, default: "" },
     generatedAt: { type: Date,   default: null },
   },
+
+  // Per-course AI reports
+  courseReports: [
+    {
+      courseId:    { type: String },
+      text:        { type: String },
+      generatedAt: { type: Date },
+      _id: false,
+    }
+  ],
 
   // When this snapshot was last computed
   computedAt: { type: Date, default: Date.now },

@@ -192,32 +192,64 @@ export default function Dashboard() {
       </div>
 
       {/* ── PROFILE CARD + STATS ── */}
-      <div className="grid lg:grid-cols-4 gap-8">
-        <div className="lg:col-span-1 bg-red rounded-3xl p-8 text-white shadow-md relative overflow-hidden group">
-          <div className="absolute top-[-20%] right-[-20%] w-[80%] h-[80%] bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-all" />
-          <div className="text-center relative z-10">
-            <div className="w-28 h-28 bg-white/20 backdrop-blur-md rounded-full mx-auto mb-6 flex items-center justify-center border-4 border-white/30 shadow-inner">
-              <span className="text-5xl">👨‍🎓</span>
+      <div className="grid lg:grid-cols-4 gap-6">
+        {/* Profile Card */}
+        <div className="lg:col-span-1 bg-red rounded-[2.5rem] p-8 text-white shadow-lg relative overflow-hidden group border-4 border-white">
+          <div className="absolute top-[-50%] right-[-20%] w-[120%] h-[150%] bg-white/10 rounded-full blur-3xl transform rotate-12 pointer-events-none group-hover:bg-white/20 transition-all duration-700"></div>
+          
+          <div className="text-center relative z-10 flex flex-col h-full justify-between">
+            <div>
+              <div className="w-28 h-28 bg-white/20 backdrop-blur-md rounded-[2rem] mx-auto mb-5 flex items-center justify-center border-4 border-white/40 shadow-xl transform group-hover:scale-105 transition-transform duration-500 overflow-hidden">
+                {user.avatar ? (
+                  <img src={`https://api.dicebear.com/7.x/adventurer/svg?seed=${user.avatar}`} alt="Avatar" className="w-full h-full object-cover drop-shadow-md" />
+                ) : (
+                  <img src={`https://api.dicebear.com/7.x/adventurer/svg?seed=${user.email}`} alt="Avatar" className="w-full h-full object-cover drop-shadow-md" />
+                )}
+              </div>
+              <h3 className="text-3xl font-black mb-1 tracking-tight drop-shadow-sm">{user.name}</h3>
+              <p className="text-yellow font-bold text-sm uppercase tracking-widest mb-6">
+                {courses.length > 0
+                  ? `${courses.length} Course${courses.length > 1 ? "s" : ""} Active`
+                  : "Welcome Aboard"}
+              </p>
             </div>
-            <h3 className="text-2xl font-bold mb-2">{user.name}</h3>
-            <p className="text-white/80 font-medium mb-8 tracking-wider">
-              {courses.length > 0
-                ? `${courses.length} Course${courses.length > 1 ? "s" : ""} Enrolled`
-                : "No Courses Yet"}
-            </p>
             <button
-              className="w-full py-3 bg-white text-red font-bold rounded-xl shadow-sm hover:shadow-md hover:bg-cream transition-all"
+              className="w-full py-4 bg-white/10 backdrop-blur-sm border border-white/30 text-white font-bold rounded-2xl shadow-sm hover:shadow-md hover:bg-white hover:text-red transition-all flex items-center justify-center mt-2"
               onClick={() => navigate("/profile")}
             >
-              View Profile
+              View Full Profile
             </button>
           </div>
         </div>
 
-        <div className="lg:col-span-3 grid sm:grid-cols-3 gap-8">
-          <StatsCard title="Courses Enrolled" value={courses.length}              icon={BookOpen} colorClass="text-green"  bgClass="bg-green/10"  borderClass="border-green/20" />
-          <StatsCard title="Lessons Done"      value={totalCompleted}             icon={BookOpen} colorClass="text-yellow" bgClass="bg-yellow/10" borderClass="border-yellow/20" />
-          <StatsCard title="Achievements"      value={user.badges?.length ?? 0}   icon={Trophy}   colorClass="text-red"    bgClass="bg-red/10"    borderClass="border-red/20" />
+        {/* Stat Cards */}
+        <div className="lg:col-span-3 grid sm:grid-cols-3 gap-6">
+          <div className="bg-gradient-to-br from-green/20 to-green/5 border border-green/20 rounded-[2.5rem] p-8 relative overflow-hidden group hover:shadow-soft transition-all">
+            <div className="absolute -right-6 -top-6 w-32 h-32 bg-green/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
+            <div className="bg-white rounded-2xl w-14 h-14 flex items-center justify-center shadow-sm mb-6 relative z-10 group-hover:scale-110 transition-transform">
+              <BookOpen className="w-7 h-7 text-green" />
+            </div>
+            <p className="text-sm font-bold text-green-800 uppercase tracking-widest mb-1 relative z-10">Courses Enrolled</p>
+            <h3 className="text-5xl font-black text-green-950 relative z-10 tracking-tight">{courses.length}</h3>
+          </div>
+
+          <div className="bg-gradient-to-br from-yellow/20 to-yellow/5 border border-yellow/20 rounded-[2.5rem] p-8 relative overflow-hidden group hover:shadow-soft transition-all">
+            <div className="absolute -right-6 -top-6 w-32 h-32 bg-yellow/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
+            <div className="bg-white rounded-2xl w-14 h-14 flex items-center justify-center shadow-sm mb-6 relative z-10 group-hover:scale-110 transition-transform">
+              <CheckCircle2 className="w-7 h-7 text-yellow-600" />
+            </div>
+            <p className="text-sm font-bold text-yellow-800 uppercase tracking-widest mb-1 relative z-10">Lessons Done</p>
+            <h3 className="text-5xl font-black text-yellow-950 relative z-10 tracking-tight">{totalCompleted}</h3>
+          </div>
+
+          <div className="bg-gradient-to-br from-red/20 to-red/5 border border-red/20 rounded-[2.5rem] p-8 relative overflow-hidden group hover:shadow-soft transition-all">
+            <div className="absolute -right-6 -top-6 w-32 h-32 bg-red/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
+            <div className="bg-white rounded-2xl w-14 h-14 flex items-center justify-center shadow-sm mb-6 relative z-10 group-hover:scale-110 transition-transform">
+              <Trophy className="w-7 h-7 text-red" />
+            </div>
+            <p className="text-sm font-bold text-red-800 uppercase tracking-widest mb-1 relative z-10">Achievements</p>
+            <h3 className="text-5xl font-black text-red-950 relative z-10 tracking-tight">{user.badges?.length ?? 0}</h3>
+          </div>
         </div>
       </div>
 

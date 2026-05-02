@@ -291,12 +291,12 @@ export default function StudyBuddyChat() {
       if (intent === "steps" && parsed.steps) {
         return (
           <div className="w-full text-[var(--foreground)]">
-            {parsed.title && <h3 className="font-bold text-lg mb-4 text-[var(--enliven-purple)]">{parsed.title}</h3>}
+            {parsed.title && <h3 className="font-bold text-lg mb-4 text-red">{parsed.title}</h3>}
             <div className="space-y-4">
               {parsed.steps.map((step, i) => (
-                <details key={i} className="group bg-[var(--card)] border-2 border-[var(--enliven-cream)] rounded-xl open:border-[var(--enliven-purple)] transition-all">
+                <details key={i} className="group bg-[var(--card)] border-2 border-[var(--enliven-cream)] rounded-xl open:border-red transition-all">
                   <summary className="flex items-center gap-3 p-4 cursor-pointer font-bold select-none list-none [&::-webkit-details-marker]:hidden">
-                     <span className="shrink-0 w-8 h-8 rounded-full bg-[var(--enliven-cream)] text-[var(--enliven-purple)] flex items-center justify-center text-sm">{step.number}</span>
+                     <span className="shrink-0 w-8 h-8 rounded-full bg-[var(--enliven-cream)] text-red flex items-center justify-center text-sm">{step.number}</span>
                      <span>{step.title}</span>
                      <ChevronDown className="w-4 h-4 ml-auto transition-transform group-open:rotate-180 text-[var(--muted-foreground)]" />
                   </summary>
@@ -322,7 +322,7 @@ export default function StudyBuddyChat() {
                  <pre className="!m-0 !p-4 !bg-gray-900 text-sm overflow-x-auto"><code className={`language-${parsed.language || 'javascript'}`}>{String(parsed.code || "")}</code></pre>
                </div>
              ) : parsed.analogy ? (
-               <blockquote className="border-l-4 border-[var(--enliven-purple)] pl-4 italic text-[var(--foreground)] opacity-90 bg-[var(--card)] py-2 pr-2 rounded-r-lg">
+               <blockquote className="border-l-4 border-red pl-4 italic text-[var(--foreground)] opacity-90 bg-[var(--card)] py-2 pr-2 rounded-r-lg">
                  "{String(parsed.analogy || "")}"
                </blockquote>
              ) : null}
@@ -391,7 +391,7 @@ export default function StudyBuddyChat() {
           {/* ── Header ── */}
           <div className="bg-[var(--card)] border-b-2 border-[var(--enliven-cream)] px-6 py-5 flex items-center justify-between shrink-0 z-10 shadow-sm">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-[var(--enliven-cream)] text-[var(--enliven-purple)] shadow-inner">
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-[var(--enliven-cream)] text-red shadow-inner">
                 <Bot className="w-6 h-6" />
               </div>
               <div>
@@ -400,7 +400,7 @@ export default function StudyBuddyChat() {
                 {enrollments.length > 1 ? (
                    <button
                      onClick={() => setShowPicker((v) => !v)}
-                     className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-widest text-[var(--muted-foreground)] mt-1 hover:text-[var(--enliven-purple)] transition-colors"
+                     className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-widest text-[var(--muted-foreground)] mt-1 hover:text-red transition-colors"
                    >
                      <BookOpen className="w-3 h-3" />
                      {courseId ? formatCourseId(courseId) : "No course selected"}
@@ -417,7 +417,7 @@ export default function StudyBuddyChat() {
 
             <button
               onClick={() => setShowCtx((s) => !s)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${showCtx ? "bg-[var(--enliven-cream)] text-[var(--foreground)]" : "border-2 border-[var(--enliven-cream)] text-[var(--muted-foreground)] hover:bg-[var(--secondary)] hover:text-[var(--foreground)]"}`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${showCtx ? "bg-[var(--enliven-cream)] text-[var(--foreground)]" : "border-2 border-[var(--enliven-cream)] text-[var(--muted-foreground)] hover:bg-[var(--enliven-cream)] hover:text-[var(--foreground)]"}`}
             >
               <BarChart2 className="w-4 h-4" />
               <span className="hidden sm:inline">My Context</span>
@@ -436,8 +436,8 @@ export default function StudyBuddyChat() {
                     onClick={() => switchCourse(e.courseId)}
                     className={`px-4 py-2 rounded-xl text-sm font-bold border-2 transition-all ${
                       e.courseId === courseId
-                        ? "bg-[var(--enliven-purple)] text-white border-[var(--enliven-purple)]"
-                        : "bg-[var(--card)] text-[var(--foreground)] border-[var(--enliven-cream)] hover:border-[var(--enliven-purple)] hover:text-[var(--enliven-purple)]"
+                        ? "bg-red text-white border-red"
+                        : "bg-[var(--card)] text-[var(--foreground)] border-[var(--enliven-cream)] hover:border-red hover:text-red"
                     }`}
                   >
                     {formatCourseId(e.courseId)}
@@ -448,7 +448,7 @@ export default function StudyBuddyChat() {
           )}
 
           {/* ── Context Panel ── */}
-          <div className={`bg-[var(--secondary)] border-[var(--enliven-cream)] transition-all duration-300 overflow-hidden shrink-0 ${showCtx ? "border-b-2 max-h-96 opacity-100 py-6 px-6" : "max-h-0 opacity-0 py-0 px-6 border-b-0"}`}>
+          <div className={`bg-[var(--enliven-cream)] border-[var(--enliven-cream)] transition-all duration-300 overflow-hidden shrink-0 ${showCtx ? "border-b-2 max-h-96 opacity-100 py-6 px-6" : "max-h-0 opacity-0 py-0 px-6 border-b-0"}`}>
             <p className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-widest mb-4">
               What Study Buddy knows about you
             </p>
@@ -467,26 +467,26 @@ export default function StudyBuddyChat() {
                 ...(lastA ? [{ label: "Last Test", value: `${lastA.score}% (${lastA.passed ? "✓ Passed" : "✗ Failed"})`, warn: lastA.flagged }] : []),
                 ...(avgScore != null ? [{ label: "Avg Score", value: `${avgScore}% over ${context.assessmentHistory.length} tests` }] : []),
               ].map(({ label, value, warn }) => (
-                <div key={label} className={`rounded-2xl px-4 py-3 border-2 min-w-[120px] bg-[var(--card)] shadow-xs ${warn ? "border-[var(--enliven-purple)]" : "border-[var(--enliven-cream)]"}`}>
+                <div key={label} className={`rounded-2xl px-4 py-3 border-2 min-w-[120px] bg-[var(--card)] shadow-xs ${warn ? "border-red" : "border-[var(--enliven-cream)]"}`}>
                   <p className="text-[var(--muted-foreground)] mb-1 uppercase text-[10px] font-bold tracking-widest">{label}</p>
-                  <p className={`font-bold text-sm ${warn ? "text-[var(--enliven-purple)]" : "text-[var(--foreground)]"}`}>{value}</p>
+                  <p className={`font-bold text-sm ${warn ? "text-red" : "text-[var(--foreground)]"}`}>{value}</p>
                 </div>
               ))}
             </div>
           </div>
 
           {/* ── Messages ── */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-8 space-y-6 relative bg-[var(--secondary)]">
+          <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-8 space-y-6 relative bg-[var(--enliven-cream)]/30">
 
             {fetching ? (
               <div className="flex flex-col items-center justify-center h-full gap-4 text-[var(--muted-foreground)]">
-                <div className="w-10 h-10 border-4 border-[var(--enliven-cream)] border-t-[var(--enliven-purple)] rounded-full animate-spin" />
+                <div className="w-10 h-10 border-4 border-[var(--enliven-cream)] border-t-red rounded-full animate-spin" />
                 <p className="font-bold">Syncing AI context…</p>
               </div>
 
             ) : !courseId ? (
               <div className="flex flex-col items-center justify-center h-full gap-6 text-center px-4 max-w-lg mx-auto">
-                <div className="w-20 h-20 rounded-[2rem] flex items-center justify-center bg-[var(--card)] shadow-soft border-4 border-[var(--enliven-cream)] text-[var(--enliven-mauve)] transform -rotate-6">
+                <div className="w-20 h-20 rounded-[2rem] flex items-center justify-center bg-[var(--card)] shadow-soft border-4 border-[var(--enliven-cream)] text-red transform -rotate-6">
                   <Sparkles className="w-10 h-10" />
                 </div>
                 <div>
@@ -499,7 +499,7 @@ export default function StudyBuddyChat() {
 
             ) : messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full gap-6 text-center px-4 max-w-lg mx-auto">
-                <div className="w-20 h-20 rounded-[2rem] flex items-center justify-center bg-[var(--card)] shadow-soft border-4 border-[var(--enliven-cream)] text-[var(--enliven-mauve)] transform -rotate-6">
+                <div className="w-20 h-20 rounded-[2rem] flex items-center justify-center bg-[var(--card)] shadow-soft border-4 border-[var(--enliven-cream)] text-red transform -rotate-6">
                   <Sparkles className="w-10 h-10" />
                 </div>
                 <div>
@@ -516,13 +516,13 @@ export default function StudyBuddyChat() {
                 return (
                   <div key={i} className={`flex gap-4 w-full ${isUser ? "justify-end" : "justify-start"}`}>
                     {!isUser && (
-                      <div className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center mt-1 bg-[var(--enliven-purple)] text-white shadow-inner">
+                      <div className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center mt-1 bg-red text-white shadow-inner">
                         <Bot className="w-5 h-5" />
                       </div>
                     )}
                     <div className={`max-w-[90%] md:max-w-[80%] rounded-[1.5rem] px-6 py-4 shadow-sm relative overflow-hidden ${
                       isUser
-                        ? "bg-[var(--enliven-purple)] text-white rounded-br-md border border-[var(--enliven-purple)]"
+                        ? "bg-red text-white rounded-br-md border border-red"
                         : "bg-[var(--card)] text-[var(--foreground)] border-2 border-[var(--enliven-cream)] rounded-bl-md"
                     }`}>
                       {renderMessageContent(msg)}
@@ -533,7 +533,7 @@ export default function StudyBuddyChat() {
                       )}
                     </div>
                     {isUser && (
-                      <div className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center mt-1 bg-[var(--secondary)] text-[var(--foreground)] border border-[var(--enliven-cream)] shadow-inner text-sm font-black">
+                      <div className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center mt-1 bg-[var(--enliven-cream)] text-[var(--foreground)] border border-[var(--enliven-cream)] shadow-inner text-sm font-black">
                         ME
                       </div>
                     )}
@@ -545,12 +545,12 @@ export default function StudyBuddyChat() {
             {/* Typing indicator */}
             {loading && (
               <div className="flex gap-4 justify-start w-full">
-                <div className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center mt-1 bg-[var(--enliven-purple)] text-white shadow-inner">
+                <div className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center mt-1 bg-red text-white shadow-inner">
                   <Bot className="w-5 h-5" />
                 </div>
                 <div className="bg-[var(--card)] border-2 border-[var(--enliven-cream)] text-[var(--foreground)] rounded-[1.5rem] rounded-bl-md px-6 py-5 flex gap-2 items-center shadow-sm">
                   {[0, 0.2, 0.4].map((delay, i) => (
-                    <span key={i} className="w-2.5 h-2.5 rounded-full bg-[var(--enliven-purple)] animate-bounce"
+                    <span key={i} className="w-2.5 h-2.5 rounded-full bg-red animate-bounce"
                       style={{ animationDelay: `${delay}s`, animationDuration: "1s" }} />
                   ))}
                 </div>
@@ -560,7 +560,7 @@ export default function StudyBuddyChat() {
             {/* Error */}
             {error && (
               <div className="flex items-center justify-center mx-auto max-w-md w-full mt-2">
-                <div className="flex items-center gap-3 text-sm px-6 py-4 rounded-2xl bg-[var(--enliven-cream)] text-[var(--enliven-purple)] font-bold border border-[var(--enliven-purple)] shadow-sm">
+                <div className="flex items-center gap-3 text-sm px-6 py-4 rounded-2xl bg-[var(--enliven-cream)] text-red font-bold border border-red shadow-sm">
                   <AlertCircle className="w-5 h-5 shrink-0" />
                   {error}
                 </div>
@@ -571,8 +571,8 @@ export default function StudyBuddyChat() {
           </div>
 
           {urlModuleTitle && (
-            <div className="bg-[var(--enliven-purple)]/10 border-t-2 border-[var(--enliven-purple)]/20 px-6 py-2 shrink-0 flex items-center justify-center z-10">
-              <p className="text-[10px] font-bold text-[var(--enliven-purple)] uppercase tracking-widest">
+            <div className="bg-red/10 border-t-2 border-red/20 px-6 py-2 shrink-0 flex items-center justify-center z-10">
+              <p className="text-[10px] font-bold text-red uppercase tracking-widest">
                 Currently studying: {urlModuleTitle} · {urlDomain} ({urlLevel})
               </p>
             </div>
@@ -586,7 +586,7 @@ export default function StudyBuddyChat() {
                    key={idx}
                    onClick={() => sendMessage(action.prompt)}
                    disabled={loading}
-                   className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-[var(--secondary)] text-[var(--foreground)] border-2 border-[var(--enliven-cream)] hover:border-[var(--enliven-purple)] hover:text-[var(--enliven-purple)] transition-all disabled:opacity-50 shadow-sm"
+                   className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-[var(--card)] text-[var(--foreground)] border-2 border-[var(--enliven-cream)] hover:border-red hover:text-red transition-all disabled:opacity-50 shadow-sm"
                  >
                    {action.icon}
                    {action.label}
@@ -598,7 +598,7 @@ export default function StudyBuddyChat() {
           {/* ── Input bar ── */}
           <div className="shrink-0 bg-[var(--card)] border-t-2 border-[var(--enliven-cream)] px-6 py-5 z-10 relative">
             <div className="flex gap-4 items-end mx-auto">
-              <div className="flex-1 bg-[var(--secondary)] border-2 border-[var(--enliven-cream)] rounded-[1.5rem] flex items-end overflow-hidden focus-within:border-[var(--enliven-purple)] focus-within:bg-[var(--card)] transition-all shadow-inner relative">
+              <div className="flex-1 bg-[var(--enliven-cream)] border-2 border-[var(--enliven-cream)] rounded-[1.5rem] flex items-end overflow-hidden focus-within:border-red focus-within:bg-[var(--card)] transition-all shadow-inner relative">
                 <textarea
                   ref={(el) => { inputRef.current = el; textareaRef.current = el; }}
                   value={input}
@@ -616,8 +616,8 @@ export default function StudyBuddyChat() {
                 disabled={!input.trim() || loading || !courseId}
                 className={`shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${
                   input.trim() && !loading && courseId
-                    ? "bg-[var(--enliven-purple)] text-white shadow-md hover:shadow-lg hover:opacity-90 transform hover:-translate-y-0.5 cursor-pointer"
-                    : "bg-[var(--secondary)] text-[var(--muted-foreground)] cursor-not-allowed border-2 border-[var(--enliven-cream)]"
+                    ? "bg-red text-white shadow-md hover:shadow-lg hover:opacity-90 transform hover:-translate-y-0.5 cursor-pointer"
+                    : "bg-[var(--enliven-cream)] text-[var(--muted-foreground)] cursor-not-allowed border-2 border-[var(--enliven-cream)]"
                 }`}
               >
                 <Send className="w-6 h-6 mr-1 mt-1" />
