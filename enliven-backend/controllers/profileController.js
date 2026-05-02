@@ -67,12 +67,12 @@ export const getProfile = async (req, res) => {
 /* ─── PUT /api/profile/update ─────────────────────────────────── */
 export const updateProfile = async (req, res) => {
   try {
-    const { name, bio, location } = req.body;
+    const { name, bio, location, avatar } = req.body;
 
     // Whitelist fields — never let the client overwrite streak/badges/etc.
     const user = await User.findByIdAndUpdate(
       req.userId,
-      { $set: { name, bio, location } },
+      { $set: { name, bio, location, avatar } },
       { new: true, runValidators: true }
     ).select("-password");
 

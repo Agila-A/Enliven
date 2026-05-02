@@ -677,7 +677,7 @@ export default function AssessmentPage() {
             <div className="flex flex-col gap-3">
               <button
                 onClick={() => isFinal ? navigate("/dashboard") : navigate(`/coding-assessment?module=${moduleId}&domain=${domain}&level=${level}`)}
-                className="w-full py-4 bg-green-600 text-white font-bold rounded-xl shadow-lg hover:bg-green-700 transition"
+                className="w-full py-4 bg-red text-white font-bold rounded-xl shadow-lg hover:bg-red/90 transition"
               >
                 {isFinal ? "Finish Course" : "Continue to Next Module →"}
               </button>

@@ -38,7 +38,7 @@ export default function CoursePage() {
       const token = localStorage.getItem("token");
       
       const [roadmapRes, progressRes] = await Promise.all([
-        fetch(`${import.meta.env.VITE_API_URL}/api/roadmap/my-roadmap`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${import.meta.env.VITE_API_URL}/api/roadmap/my-roadmap?courseId=${courseId}`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`${import.meta.env.VITE_API_URL}/api/progress/${courseId}`, { headers: { Authorization: `Bearer ${token}` } })
       ]);
 

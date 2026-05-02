@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react"
+import { BookOpen, ChevronRight } from "lucide-react"
 import ResourceCard from "../components/ResourceCard"
 
 const CATEGORIES = [
@@ -21,21 +22,21 @@ function formatTimeAgo(dateStr) {
 export default function ResourcesPage() {
   const [roadmap,      setRoadmap]      = useState(null)
   const [courseId,     setCourseId]     = useState(null)
+  const [enrollments,  setEnrollments]  = useState([])
+  const [showPicker,   setShowPicker]   = useState(false)
   const [byModule,     setByModule]     = useState({})
-  // { moduleId: { status, resources, fetchedAt, topicTitle } }
 
   const [activeModule, setActiveModule] = useState(null)
-  // Currently selected module tab — sequence number string
-
   const [activeCategory, setActiveCategory] = useState("articles")
-  // Currently selected category tab within the module
-
   const [loading,      setLoading]      = useState(true)
   const [refreshing,   setRefreshing]   = useState(false)
   const pollRefs = useRef({})
-  // Tracks active polling intervals per moduleId
 
   const token = localStorage.getItem("token")
+
+  const formatCourseId = (id = "") => {
+    return id.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  };
 
   const startPollingModule = (moduleId, cid) => {
     // Don't start duplicate polls
@@ -105,77 +106,106 @@ export default function ResourcesPage() {
     }
   }
 
+  const loadCourseData = async (cid) => {
+    try {
+      setLoading(true);
+      // Clean up previous polls
+      Object.values(pollRefs.current).forEach(clearInterval);
+      pollRefs.current = {};
+      setByModule({});
+      setActiveModule(null);
+
+      const rRes = await fetch(`${import.meta.env.VITE_API_URL}/api/roadmap/my-roadmap?courseId=${cid}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const rData = await rRes.json();
+      if (!rData.success || !rData.roadmap) { setLoading(false); return; }
+
+      const rm = rData.roadmap;
+      setRoadmap(rm);
+
+      if (rm.topics?.length) setActiveModule(String(rm.topics[0].sequenceNumber));
+
+      const cRes = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/resources/all?courseId=${cid}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const cData = await cRes.json();
+      if (cData.success) setByModule(cData.byModule || {});
+
+      const topicsToFetch = rm.topics.filter(topic => {
+        const mid = String(topic.sequenceNumber);
+        const entry = cData.byModule?.[mid];
+        return !entry || entry.status === "failed" || 
+               (entry.status === "ready" && entry.fetchedAt && 
+               (Date.now() - new Date(entry.fetchedAt)) > 7 * 24 * 60 * 60 * 1000);
+      });
+
+      const processQueue = async () => {
+        for (let i = 0; i < topicsToFetch.length; i++) {
+          const topic = topicsToFetch[i];
+          const mid = String(topic.sequenceNumber);
+          await triggerFetchForModule(mid, cid);
+          if (i < topicsToFetch.length - 1) {
+            await new Promise(r => setTimeout(r, 4000));
+          }
+        }
+      };
+      processQueue();
+
+      for (const topic of rm.topics) {
+        const mid = String(topic.sequenceNumber);
+        if (cData.byModule?.[mid]?.status === "pending") {
+          startPollingModule(mid, cid);
+        }
+      }
+    } catch (err) {
+      console.error("ResourcesPage loadCourse error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     async function init() {
       try {
-        // 1. Get roadmap
-        const rRes  = await fetch(`${import.meta.env.VITE_API_URL}/api/roadmap/my-roadmap`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        const rData = await rRes.json()
-        if (!rData.success || !rData.roadmap) { setLoading(false); return }
-
-        const rm    = rData.roadmap
-        setRoadmap(rm)
-
-        const domainSlug = rm.domain.toLowerCase().replace(/\s+/g, "-")
-        const levelSlug  = rm.skillLevel.replace(/[^a-zA-Z\s]/g, "").toLowerCase().replace(/[^a-z]/g, "")
-        const cid        = `${domainSlug}-${levelSlug}`
-        setCourseId(cid)
-
-        // Default to first module
-        if (rm.topics?.length) setActiveModule(String(rm.topics[0].sequenceNumber))
-
-        // 2. Get all cached resources at once
-        const cRes  = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/resources/all?courseId=${cid}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        )
-        const cData = await cRes.json()
-        if (cData.success) setByModule(cData.byModule || {})
-
-        // 3. Sequential Queue to avoid Groq Rate Limits
-        const topicsToFetch = rm.topics.filter(topic => {
-          const mid = String(topic.sequenceNumber);
-          const entry = cData.byModule?.[mid];
-          return !entry || entry.status === "failed" || 
-                 (entry.status === "ready" && entry.fetchedAt && 
-                 (Date.now() - new Date(entry.fetchedAt)) > 7 * 24 * 60 * 60 * 1000);
+        const eRes = await fetch(`${import.meta.env.VITE_API_URL}/api/user/enrollments`, {
+          headers: { Authorization: `Bearer ${token}` }
         });
+        const eData = await eRes.json();
+        const list = eData.enrollments || [];
+        setEnrollments(list);
 
-        const processQueue = async () => {
-          for (let i = 0; i < topicsToFetch.length; i++) {
-            const topic = topicsToFetch[i];
-            const mid = String(topic.sequenceNumber);
-            await triggerFetchForModule(mid, cid);
-            if (i < topicsToFetch.length - 1) {
-              await new Promise(r => setTimeout(r, 4000)); // 4s delay
-            }
-          }
-        };
-
-        processQueue();
-
-        for (const topic of rm.topics) {
-          const mid = String(topic.sequenceNumber);
-          if (cData.byModule?.[mid]?.status === "pending") {
-            startPollingModule(mid, cid);
-          }
+        let activeCourseId = localStorage.getItem("activeCourseId");
+        if (!activeCourseId && list.length > 0) {
+          activeCourseId = list[0].courseId;
+          localStorage.setItem("activeCourseId", activeCourseId);
         }
+        if (!activeCourseId) {
+          setLoading(false);
+          return;
+        }
+        setCourseId(activeCourseId);
+        await loadCourseData(activeCourseId);
       } catch (err) {
-        console.error("ResourcesPage init error:", err)
-      } finally {
-        setLoading(false)
+        console.error("Init err", err);
+        setLoading(false);
       }
     }
-    init()
+    init();
 
-    // Cleanup all polls on unmount
-    const currentPolls = pollRefs.current;
     return () => {
-      Object.values(currentPolls).forEach(clearInterval)
-    }
-  }, [token])
+      Object.values(pollRefs.current).forEach(clearInterval);
+    };
+  }, [token]);
+
+  const switchCourse = async (newCourseId) => {
+    if (newCourseId === courseId) { setShowPicker(false); return; }
+    setCourseId(newCourseId);
+    localStorage.setItem("activeCourseId", newCourseId);
+    setShowPicker(false);
+    await loadCourseData(newCourseId);
+  };
 
   const handleManualRefresh = async (moduleId) => {
     setRefreshing(true)
@@ -228,13 +258,53 @@ export default function ResourcesPage() {
     <div className="min-h-screen bg-background p-6 lg:p-10 font-sans">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-10 bg-white p-8 rounded-[2.5rem] border shadow-sm relative overflow-hidden">
-           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -mr-32 -mt-32 blur-3xl" />
-           <div className="relative z-10">
-             <h1 className="text-4xl font-black tracking-tight mb-2">Web Explorer <span className="text-primary">Agent</span></h1>
-             <p className="text-muted-foreground font-bold max-w-2xl leading-relaxed">
-               Every module in your roadmap is automatically analyzed weekly. Our agent explores the web to find the most relevant and up-to-date learning materials for your specific skill level.
-             </p>
+        <div className="mb-10 bg-white p-8 rounded-[2.5rem] border shadow-sm relative overflow-visible">
+           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -mr-32 -mt-32 blur-3xl pointer-events-none" />
+           <div className="relative z-10 flex flex-col md:flex-row md:items-start justify-between gap-6">
+             <div>
+               <h1 className="text-4xl font-black tracking-tight mb-2">Web Explorer <span className="text-primary">Agent</span></h1>
+               <p className="text-muted-foreground font-bold max-w-2xl leading-relaxed">
+                 Every module in your roadmap is automatically analyzed weekly. Our agent explores the web to find the most relevant and up-to-date learning materials for your specific skill level.
+               </p>
+             </div>
+             
+             {/* Course Switcher */}
+             <div className="relative flex-shrink-0 z-20">
+               {enrollments.length > 1 ? (
+                 <button
+                   onClick={() => setShowPicker((v) => !v)}
+                   className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-cream/30 text-xs font-bold uppercase tracking-widest text-foreground hover:bg-cream/50 transition-colors border-2 border-cream/50 hover:border-primary/30"
+                 >
+                   <BookOpen className="w-4 h-4 text-primary" />
+                   {courseId ? formatCourseId(courseId) : "Select Course"}
+                   <ChevronRight className={`w-4 h-4 transition-transform text-muted-foreground ${showPicker ? "rotate-90" : ""}`} />
+                 </button>
+               ) : (
+                 <div className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-cream/30 text-xs font-bold uppercase tracking-widest text-foreground border-2 border-cream/50">
+                   <BookOpen className="w-4 h-4 text-primary" />
+                   {courseId ? formatCourseId(courseId) : "No course"}
+                 </div>
+               )}
+
+               {showPicker && enrollments.length > 1 && (
+                 <div className="absolute right-0 top-full mt-2 w-64 bg-white border-2 border-cream/50 rounded-2xl p-3 shadow-xl z-50 flex flex-col gap-2">
+                   <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-2 pb-1">Switch Course</p>
+                   {enrollments.map((e) => (
+                     <button
+                       key={e.courseId}
+                       onClick={() => switchCourse(e.courseId)}
+                       className={`w-full text-left px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+                         e.courseId === courseId
+                           ? "bg-primary text-white"
+                           : "hover:bg-cream/50 text-foreground"
+                       }`}
+                     >
+                       {formatCourseId(e.courseId)}
+                     </button>
+                   ))}
+                 </div>
+               )}
+             </div>
            </div>
         </div>
 

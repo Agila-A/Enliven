@@ -1,6 +1,6 @@
 // ProfilePage.jsx
 import React, { useEffect, useState } from "react";
-import { Mail, Calendar, MapPin, Settings, Flame, Download, Trophy } from "lucide-react";
+import { Mail, Calendar, MapPin, Settings, Flame, Download, Trophy, BookOpen, Shield, Star, RefreshCw } from "lucide-react";
 import { Button } from "../ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 
@@ -11,7 +11,7 @@ export default function ProfilePage() {
   const [error, setError]       = useState("");
   const [saveLoading, setSaveLoading] = useState(false);
 
-  const [editForm, setEditForm] = useState({ name: "", bio: "", location: "" });
+  const [editForm, setEditForm] = useState({ name: "", bio: "", location: "", avatar: "" });
 
   // ── LOAD PROFILE ──────────────────────────────────────────────
   useEffect(() => {
@@ -37,6 +37,7 @@ export default function ProfilePage() {
           name:     data.user.name     || "",
           bio:      data.user.bio      || "",
           location: data.user.location || "",
+          avatar:   data.user.avatar   || `seed-${Math.random().toString(36).substring(7)}`,
         });
       } catch (err) {
         console.error(err);
@@ -88,53 +89,105 @@ export default function ProfilePage() {
   if (error && !profile) return <div className="p-10 flex justify-center"><p className="text-red font-bold font-sans">{error}</p></div>;
   if (!profile) return <div className="p-10 flex justify-center"><p className="text-foreground/70 font-sans">Failed to load user data.</p></div>;
 
-  // Streak display helpers
+  const handleShuffleAvatar = () => {
+    setEditForm(prev => ({ ...prev, avatar: `seed-${Math.random().toString(36).substring(7)}` }));
+  };
+
+  // Profile calculations
   const streak        = profile.streak        ?? 0;
   const longestStreak = profile.longestStreak ?? 0;
+  const badgesCount   = profile.badges?.length || 0;
+  const enrollments   = profile.enrollments || [];
+
+  const totalXP = (longestStreak * 10) + (badgesCount * 50) + (enrollments.length * 20);
+  const currentLevel = Math.floor(totalXP / 100) + 1;
+  const xpInCurrentLevel = totalXP % 100;
+  
+  let rankTitle = "Novice Explorer";
+  if (currentLevel >= 5) rankTitle = "Adept Learner";
+  if (currentLevel >= 10) rankTitle = "Skilled Scholar";
+  if (currentLevel >= 20) rankTitle = "Master Architect";
+  if (currentLevel >= 50) rankTitle = "Grandmaster";
+
+  const avatarUrl = profile.avatar 
+    ? `https://api.dicebear.com/7.x/adventurer/svg?seed=${profile.avatar}`
+    : `https://api.dicebear.com/7.x/adventurer/svg?seed=${profile.email}`;
 
   return (
-    <div className="p-8 w-full flex justify-center bg-cream/20 min-h-screen font-sans">
+    <div className="p-4 md:p-8 w-full flex justify-center bg-cream/20 min-h-screen font-sans">
       <div className="max-w-5xl w-full space-y-8 mt-2">
 
-        {/* ── HEADER CARD ── */}
-        <div className="bg-red rounded-[2.5rem] p-10 text-white shadow-soft relative overflow-hidden group border-4 border-white">
-           <div className="absolute top-[-20%] right-[-10%] w-[50%] h-[120%] bg-white/10 rounded-full blur-3xl transform rotate-12 group-hover:bg-white/20 transition-all"></div>
-          
-          <div className="flex flex-col md:flex-row items-center md:items-start justify-between relative z-10 gap-6">
-            <div className="flex flex-col md:flex-row items-center md:items-start space-y-4 md:space-y-0 md:space-x-8 text-center md:text-left">
-              <div className="w-36 h-36 border-4 border-white/30 backdrop-blur-sm bg-white/10 rounded-full flex items-center justify-center text-6xl shadow-inner flex-shrink-0">
-                👨‍🎓
+        {/* ── PASSPORT HEADER ── */}
+        <div className="bg-red rounded-[3rem] p-1 shadow-xl relative overflow-hidden group">
+           <div className="absolute top-[-50%] right-[-20%] w-[80%] h-[200%] bg-white/5 rounded-full blur-3xl transform rotate-12 pointer-events-none"></div>
+           <div className="absolute bottom-[-20%] left-[-10%] w-[40%] h-[100%] bg-black/10 rounded-full blur-2xl transform -rotate-12 pointer-events-none"></div>
+
+          <div className="bg-white/10 backdrop-blur-md rounded-[2.8rem] p-8 md:p-12 relative z-10 border border-white/20 flex flex-col md:flex-row items-center md:items-start gap-8 md:gap-12">
+            
+            {/* Avatar & Rank */}
+            <div className="flex flex-col items-center shrink-0">
+              <div className="w-40 h-40 rounded-[2.5rem] bg-cream/20 border-4 border-white/40 p-2 shadow-2xl relative overflow-hidden transform group-hover:scale-105 transition-transform duration-500">
+                <div className="absolute inset-0 bg-gradient-to-tr from-yellow/20 to-transparent z-0"></div>
+                <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover relative z-10 drop-shadow-md" />
               </div>
-              <div className="pt-2">
-                <h1 className="text-4xl font-bold tracking-tight">{profile.name}</h1>
-                <div className="flex flex-col md:flex-row gap-3 md:gap-6 text-white/80 font-medium my-4 justify-center md:justify-start">
-                  <p className="flex items-center gap-2">
-                    <Mail className="w-5 h-5" />
-                    <span>{profile.email}</span>
-                  </p>
-                  <p className="flex items-center gap-2">
-                    <Calendar className="w-5 h-5" />
-                    <span>Joined {new Date(profile.createdAt).toLocaleDateString()}</span>
-                  </p>
-                  {profile.location && (
-                    <p className="flex items-center gap-2">
-                      <MapPin className="w-5 h-5" />
-                      <span>{profile.location}</span>
-                    </p>
-                  )}
-                </div>
-                <p className="text-white bg-black/10 px-6 py-4 rounded-2xl max-w-xl font-medium leading-relaxed border border-white/10 text-sm">
-                  {profile.bio || "No bio added yet. Tell us about yourself!"}
-                </p>
+              <div className="mt-4 bg-white/20 border border-white/30 backdrop-blur-sm px-4 py-1.5 rounded-full flex items-center gap-2 shadow-inner">
+                 <Star className="w-4 h-4 text-yellow fill-yellow" />
+                 <span className="text-white font-bold text-sm tracking-widest uppercase">Level {currentLevel}</span>
               </div>
             </div>
 
-            <button
-              className="bg-white text-red font-bold hover:bg-cream px-6 py-3 rounded-xl shadow-md transition-all flex items-center shrink-0 hover:-translate-y-0.5"
-              onClick={() => setIsEditing(true)}
-            >
-              <Settings className="w-5 h-5 mr-3" /> Edit Profile
-            </button>
+            {/* User Details */}
+            <div className="flex-1 text-center md:text-left flex flex-col justify-center h-full pt-2 w-full">
+               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
+                 <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight drop-shadow-sm">{profile.name}</h1>
+                 <button
+                   className="bg-white/10 hover:bg-white/20 text-white border border-white/30 font-bold px-5 py-2.5 rounded-xl shadow-sm transition-all flex items-center justify-center shrink-0 backdrop-blur-sm hover:-translate-y-0.5 text-sm"
+                   onClick={() => setIsEditing(true)}
+                 >
+                   <Settings className="w-4 h-4 mr-2" /> Edit Passport
+                 </button>
+               </div>
+               
+               <p className="text-yellow font-bold text-lg uppercase tracking-widest mb-6 drop-shadow-sm">{rankTitle}</p>
+
+               <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 text-white/80 font-medium mb-6 text-sm">
+                 <p className="flex items-center gap-1.5 bg-black/10 px-3 py-1.5 rounded-lg border border-white/5">
+                   <Mail className="w-4 h-4" /> {profile.email}
+                 </p>
+                 <p className="flex items-center gap-1.5 bg-black/10 px-3 py-1.5 rounded-lg border border-white/5">
+                   <Calendar className="w-4 h-4" /> Joined {new Date(profile.createdAt).toLocaleDateString()}
+                 </p>
+                 {profile.location && (
+                   <p className="flex items-center gap-1.5 bg-black/10 px-3 py-1.5 rounded-lg border border-white/5">
+                     <MapPin className="w-4 h-4" /> {profile.location}
+                   </p>
+                 )}
+               </div>
+
+               <div className="bg-black/20 border border-white/10 rounded-2xl p-5 text-white/90 text-sm leading-relaxed shadow-inner max-w-2xl font-medium">
+                  {profile.bio || "No bio added yet. Tell us about yourself!"}
+               </div>
+
+               {/* XP Bar */}
+               <div className="mt-8 max-w-xl">
+                 <div className="flex justify-between text-xs font-bold text-white/70 uppercase tracking-widest mb-2">
+                   <span>XP Progress</span>
+                   <span>{xpInCurrentLevel} / 100 XP</span>
+                 </div>
+                 <div className="h-3 w-full bg-black/30 rounded-full overflow-hidden border border-white/10 shadow-inner mb-3">
+                   <div 
+                     className="h-full bg-gradient-to-r from-yellow to-green rounded-full transition-all duration-1000 ease-out relative"
+                     style={{ width: `${xpInCurrentLevel}%` }}
+                   >
+                     <div className="absolute inset-0 bg-white/20 w-full animate-pulse"></div>
+                   </div>
+                 </div>
+                 <div className="bg-black/20 px-4 py-2 rounded-xl text-xs text-white/60 font-medium inline-block border border-white/5">
+                   <span className="text-yellow font-bold">XP Breakdown:</span> Earn <span className="text-white">10 XP</span> per longest streak day, <span className="text-white">50 XP</span> per badge, and <span className="text-white">20 XP</span> per enrolled course!
+                 </div>
+               </div>
+
+            </div>
           </div>
         </div>
 
@@ -183,6 +236,41 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* ── COURSES SHOWCASE ── */}
+        <div className="bg-white border-2 border-cream rounded-[2rem] p-8 shadow-sm relative overflow-hidden">
+           <div className="flex items-center gap-3 mb-8">
+             <div className="p-3 bg-red/10 rounded-xl text-red">
+               <BookOpen className="w-6 h-6" />
+             </div>
+             <h3 className="text-2xl font-bold text-foreground tracking-tight">Active Learning Paths</h3>
+           </div>
+
+           {enrollments.length === 0 ? (
+             <div className="text-center py-12 bg-cream/20 rounded-2xl border-2 border-dashed border-cream/50">
+               <p className="text-foreground/60 font-medium">You haven't enrolled in any courses yet.</p>
+             </div>
+           ) : (
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+               {enrollments.map((course, idx) => (
+                 <div key={idx} className="border-2 border-cream rounded-2xl p-6 hover:border-red/30 transition-colors bg-gradient-to-b from-white to-cream/10 group cursor-pointer">
+                   <div className="flex justify-between items-start mb-4">
+                     <span className="text-[10px] font-black uppercase tracking-widest text-red bg-red/10 px-3 py-1 rounded-lg">
+                       {course.skillLevel}
+                     </span>
+                     <Shield className="w-5 h-5 text-cream group-hover:text-yellow transition-colors" />
+                   </div>
+                   <h4 className="font-bold text-lg text-foreground mb-1 capitalize">
+                     {course.domain.replace(/-/g, " ")}
+                   </h4>
+                   <p className="text-xs text-foreground/50 font-bold uppercase tracking-widest mb-4">
+                     Enrolled {new Date(course.enrolledAt).toLocaleDateString()}
+                   </p>
+                 </div>
+               ))}
+             </div>
+           )}
         </div>
 
         {/* ── TABS ── */}
@@ -275,6 +363,21 @@ export default function ProfilePage() {
               {error && <div className="bg-red/10 border border-red/20 text-red font-bold text-sm p-3 rounded-xl mb-4 text-center">{error}</div>}
 
               <div className="space-y-4">
+                  <div className="flex items-center gap-4 mb-6 bg-cream/20 p-4 rounded-2xl border border-cream">
+                    <div className="w-20 h-20 rounded-xl bg-white border-2 border-cream p-1 shrink-0 overflow-hidden shadow-sm">
+                      <img src={`https://api.dicebear.com/7.x/adventurer/svg?seed=${editForm.avatar}`} alt="Preview" className="w-full h-full object-cover rounded-lg" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-foreground mb-2">Profile Avatar</p>
+                      <button 
+                        onClick={handleShuffleAvatar}
+                        className="flex items-center gap-2 text-xs font-bold bg-white border border-cream px-3 py-2 rounded-lg hover:bg-cream/50 transition-colors text-foreground/70 shadow-sm"
+                      >
+                        <RefreshCw className="w-3 h-3" /> Shuffle
+                      </button>
+                    </div>
+                  </div>
+
                   <div>
                       <label className="block text-xs font-bold text-foreground/50 uppercase tracking-widest mb-2 pl-1">Name</label>
                       <input

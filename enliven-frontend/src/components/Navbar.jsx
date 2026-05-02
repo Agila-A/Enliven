@@ -5,7 +5,6 @@ import { Button } from "./ui/button";
 
 export default function Navbar({ onGetStarted, isLanding = false }) {
   const navigate = useNavigate();
-  const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   const userStr = localStorage.getItem("user");
@@ -15,12 +14,6 @@ export default function Navbar({ onGetStarted, isLanding = false }) {
     localStorage.clear();
     navigate("/login");
   };
-
-  const notifications = [
-    { id: 1, title: "New Roadmap Generated", time: "2m ago", read: false },
-    { id: 2, title: "Exam Passed: HTML Basics", time: "1h ago", read: true },
-    { id: 3, title: "Daily Goal Achieved! 🏆", time: "5h ago", read: true },
-  ];
   return (
     <nav className="w-full fixed top-0 left-0 bg-cream/90 backdrop-blur-xl border-b border-white/20 z-50">
       {/* FULL WIDTH NAVBAR */}
@@ -95,44 +88,12 @@ export default function Navbar({ onGetStarted, isLanding = false }) {
             </>
           ) : (
             <div className="flex items-center gap-4">
-              {/* DASHBOARD NOTIFICATIONS */}
-              <div className="relative">
-                <button
-                  onClick={() => { setShowNotifications(!showNotifications); setShowProfileMenu(false); }}
-                  className={`p-3 rounded-2xl relative transition-all shadow-sm border ${showNotifications ? 'bg-white border-red/30 ring-4 ring-red/5' : 'bg-white/60 border-white/40 hover:bg-white hover:border-red/20'}`}
-                >
-                  <Bell className={`w-5 h-5 ${showNotifications ? 'text-red' : 'text-foreground/70'}`} />
-                  <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 bg-red rounded-full border-2 border-white animate-pulse"></span>
-                </button>
-
-                {showNotifications && (
-                  <div className="absolute right-0 mt-4 w-80 bg-white rounded-3xl shadow-2xl border border-cream overflow-hidden z-[100] animate-in fade-in slide-in-from-top-4 duration-300">
-                    <div className="p-5 border-b border-cream flex justify-between items-center bg-cream/10">
-                      <h3 className="font-black text-sm uppercase tracking-widest text-foreground">Notifications</h3>
-                      <button className="text-[10px] font-black text-red uppercase tracking-widest hover:underline">Clear</button>
-                    </div>
-                    <div className="max-h-96 overflow-y-auto p-2 space-y-1">
-                      {notifications.map(n => (
-                        <div key={n.id} className="p-4 hover:bg-cream/20 transition-all rounded-2xl border border-transparent hover:border-cream cursor-pointer group relative">
-                          <div className="flex justify-between items-start mb-1">
-                            <span className={`text-xs font-bold leading-snug ${n.read ? 'text-foreground/60' : 'text-foreground'}`}>{n.title}</span>
-                            {!n.read && <div className="w-2 h-2 bg-red rounded-full mt-1.5 flex-shrink-0"></div>}
-                          </div>
-                          <span className="text-[9px] text-foreground/30 font-black uppercase tracking-widest">{n.time}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <button className="w-full p-4 text-[10px] font-black text-foreground/40 uppercase tracking-widest hover:bg-cream/20 transition-all border-t border-cream">
-                      See all history
-                    </button>
-                  </div>
-                )}
-              </div>
+              {/* REMOVED DASHBOARD NOTIFICATIONS */}
 
               {/* USER ICON / PROFILE MENU */}
               <div className="relative">
                 <button
-                  onClick={() => { setShowProfileMenu(!showProfileMenu); setShowNotifications(false); }}
+                  onClick={() => setShowProfileMenu(!showProfileMenu)}
                   className={`flex items-center gap-3 pl-2 pr-4 py-2 rounded-2xl transition-all shadow-sm border ${showProfileMenu ? 'bg-white border-red/30 ring-4 ring-red/5' : 'bg-white/60 border-white/40 hover:bg-white hover:border-red/20'} group`}
                 >
                   <div className="w-9 h-9 bg-gradient-to-br from-green to-emerald-600 rounded-xl flex items-center justify-center shadow-inner group-hover:scale-105 transition-transform">
