@@ -11,6 +11,8 @@ export default function InitialAssessment() {
   const [result,     setResult]     = useState(null);
   const [roadmap,    setRoadmap]    = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [canAnswer,  setCanAnswer]  = useState(false);
+
 
   const navigate = useNavigate();
   const token    = localStorage.getItem("token");
@@ -33,13 +35,27 @@ export default function InitialAssessment() {
     loadQuestions();
   }, [token]);
 
+  // Enable interaction after a short delay once questions are loaded
+  useEffect(() => {
+    if (!loading && questions.length > 0) {
+      const timer = setTimeout(() => setCanAnswer(true), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, questions]);
+
+
   const handleAnswer = (optionIndex) => {
+    if (!canAnswer) return;
+    setCanAnswer(false); // Prevent double-clicks
+
     const grade   = ["A", "B", "C", "D"][optionIndex];
     const updated = [...answers, grade];
     setAnswers(updated);
 
     if (index < questions.length - 1) {
       setIndex(index + 1);
+      // Re-enable after next question is "shown"
+      setTimeout(() => setCanAnswer(true), 400);
     } else {
       submitAssessment(updated);
     }

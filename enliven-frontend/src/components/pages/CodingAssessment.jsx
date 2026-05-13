@@ -405,9 +405,9 @@ export default function CodingAssessment() {
           </div>
 
           <div className="flex-1 flex overflow-hidden">
-              <div className="flex-1 p-8 bg-[#1e1e1e] relative">
+              <div className="flex-1 p-8 bg-[#0f172a] relative">
                   <textarea
-                    className="w-full h-full bg-transparent text-gray-300 font-mono text-lg resize-none outline-none"
+                    className="w-full h-full bg-transparent text-[#4ade80] font-mono text-lg resize-none outline-none custom-scrollbar"
                     spellCheck={false}
                     value={prob.type === 'html_css' ? solutions[currentIdx].html : solutions[currentIdx]}
                     onChange={(e) => {
@@ -419,6 +419,7 @@ export default function CodingAssessment() {
                   {/* Floating Violation Alert */}
                   {violationBanner && <div className="absolute top-10 left-10 right-10 bg-red text-white p-4 rounded-xl font-bold shadow-2xl flex items-center gap-3 animate-bounce"><AlertTriangle /> {violationBanner}</div>}
               </div>
+
 
               {/* Console/Preview */}
               <div className="w-[35%] bg-white border-l border-cream flex flex-col">

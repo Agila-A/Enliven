@@ -178,9 +178,10 @@ export default function ProjectPage() {
                 value={code}
                 onChange={e => setCode(e.target.value)}
                 placeholder={`// Paste or write your ${language} code here...`}
-                className="w-full h-[400px] font-mono text-sm border-2 border-gray-100 rounded-2xl p-6 bg-gray-950 text-green-400 resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all shadow-inner"
+                className="w-full h-[400px] font-mono text-sm border-2 border-gray-100 rounded-2xl p-6 bg-[#0f172a] text-[#4ade80] resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all shadow-inner custom-scrollbar"
                 spellCheck={false}
               />
+
               <div className="flex justify-between mt-2 px-1">
                 <span className={`text-xs font-bold ${code.length > 50000 ? 'text-red' : 'text-muted-foreground'}`}>
                   {code.length.toLocaleString()} / 50,000 characters

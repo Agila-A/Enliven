@@ -134,10 +134,11 @@ export default function MentorReviewPage() {
                 <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Project Source Code</h3>
                 <div className="relative group">
                    <div className="absolute top-4 right-4 text-[10px] font-black uppercase tracking-widest text-white/20 group-hover:text-white/40 transition-colors">Read Only</div>
-                   <pre className="bg-gray-950 text-green-400 p-8 rounded-3xl text-sm font-mono overflow-x-auto max-h-[400px] shadow-2xl">
+                   <pre className="bg-[#0f172a] text-[#4ade80] p-8 rounded-3xl text-sm font-mono overflow-x-auto max-h-[400px] shadow-2xl custom-scrollbar border border-white/5">
                      <code>{selected.code}</code>
                    </pre>
                 </div>
+
               </div>
 
               {/* AI review summary for mentor */}

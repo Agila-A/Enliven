@@ -912,11 +912,13 @@ export default function AssessmentPage() {
           </div>
 
           {/* Question card */}
-          <div className="bg-white border border-cream rounded-[2rem] p-8 md:p-10 shadow-sm flex-1 flex flex-col">
+          <div className="bg-white border border-cream rounded-[2rem] p-8 md:p-10 shadow-sm flex flex-col">
+
             <h2 className="text-2xl font-bold leading-relaxed mb-8 text-foreground">
               {questions[currentQ]?.question}
             </h2>
-            <div className="space-y-4 mt-auto">
+            <div className="space-y-4">
+
               {questions[currentQ]?.options.map((opt, i) => {
                 const sel = selectedAnswers[currentQ] === i;
                 return (
